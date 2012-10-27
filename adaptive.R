@@ -1,6 +1,22 @@
 initify = function (model, v)
     `names<-`(as.list(v), model$params.to.monitor)
 
+quartet.repeat.interval = 10
+  # The adaptive procedures will only be allowed to present the
+  # same quartet every repeat.interval trials.
+
+choose.maxpdiff = function(choice.p, theta1, theta2, ts)
+# Choose a quartet maximizing the difference in choice
+# probability for theta1 and theta2.
+   {recent.quartets = with(tail(ts, quartet.repeat.interval - 1),
+        paste(ssr, ssd, llr, lld))
+    adaptive.quartets = ss(adaptive.quartets, !(
+        paste(ssr, ssd, llr, lld) %in% recent.quartets))
+    i = which.max(pdiff <- abs(
+        choice.p(adaptive.quartets, theta1) -
+        choice.p(adaptive.quartets, theta2)))
+    adaptive.quartets[i,]}
+
 adapt.simultaneous.trials = 50
 
 adapt.simultaneous = function(ts, model, theta1, theta2, theta3)
@@ -21,16 +37,10 @@ adapt.simultaneous = function(ts, model, theta1, theta2, theta3)
         theta2 = as.numeric(model$init(2))
         theta3 = as.numeric(model$init(3))}
 
-    # Choose a quartet maximizing the difference in choice
-    # probability for theta1 and theta2.
-    i = which.max(pdiff <- abs(
-        model$choice.p(adaptive.quartets, theta1) -
-        model$choice.p(adaptive.quartets, theta2)))
-
     # Return the new quartet, a flag saying whether we're done
     # adapting, and the new thetas.
     list(
-        quartet = adaptive.quartets[i,],
+        quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
         final_trial = as.integer(nrow(ts) + 1 == adapt.simultaneous.trials),
         state = list(theta1, theta2, theta3))}
 
@@ -60,16 +70,10 @@ adapt.1patatime = function(ts, model, theta1, theta2, postsamp)
         theta2[1] = model$init(2)[[1]]
         postsamp = t(sapply(1:3, model$init))}
 
-    # Choose a quartet maximizing the difference in choice
-    # probability for theta1 and theta2.
-    i = which.max(pdiff <- abs(
-        model$choice.p(adaptive.quartets, theta1) -
-        model$choice.p(adaptive.quartets, theta2)))
-
     # Return the new quartet, a flag saying whether we're done
     # adapting, and the new thetas and postsamp.
     list(
-        quartet = adaptive.quartets[i,],
+        quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
         final_trial = as.integer(nrow(ts) + 1 == adapt.1patatime.trials),
         state = list(theta1, theta2, postsamp))}
 
