@@ -170,11 +170,10 @@ stan.choicemodel = function(
             monitor = c(monitor, "sim_choose_ll_p")
         current.thin = thin
         current.adapt = n.adapt
-        #model = cached_stan_model(model.str)
+        model = cached_stan_model(model.str)
         round = 1
         repeat
-           {model = cached_stan_model(model.str)
-            capture.output(fit <- sampling(model, refresh = -1,
+           {capture.output(fit <- sampling(model, refresh = -1,
                 data = mkdat.stan(ts.train, ts.test),
                 init = init,
                 chains = stan.chains,
