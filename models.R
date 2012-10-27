@@ -228,6 +228,8 @@ stan.choicemodel = function(
                     irng = q[2] - q[1],
                     ppos = 1)})))
         d}
+    precompile = function()
+        cached_stan_model(model.str)
     list(
         params.to.monitor = params.to.monitor,
         choice.p = choice.p,
@@ -235,7 +237,8 @@ stan.choicemodel = function(
         init = std.init,
         gendata = gendata,
         sample.posterior = sample.posterior,
-        predict.choices = predict.choices)}
+        predict.choices = predict.choices,
+        precompile = precompile)}
 
 rlunif = function(n, min = 1e-10, max = 1)
    exp(runif(n, log(min), log(max)))

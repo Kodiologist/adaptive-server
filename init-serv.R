@@ -26,6 +26,11 @@ db = dbConnect(dbDriver("SQLite"), dbname = db.path)
 sql = function (query, ...)
     dbGetPreparedQuery(db, query, bind.data = data.frame(...))
 
+model.expk.rho$precompile()
+model.ghmk.rho$precompile()
+model.diff$precompile()
+model.sr$precompile()
+
 msg = function (...)
     message("GNQ: ", ...)
 
