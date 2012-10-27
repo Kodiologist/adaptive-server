@@ -86,6 +86,7 @@ empty.ts = data.frame(
     llr = numeric(0), lld = numeric(0),
     choice = factor(character(0), levels = qw(ss, ll)))
 
+sim.adapt.ts = NULL
 simulate.adaption = function(procedure, model, decider)
    {ts = empty.ts
     x = procedure(ts, model)
@@ -95,4 +96,5 @@ simulate.adaption = function(procedure, model, decider)
             break
         ts = rbind(ts, decider(x$quartet))
         x = do.call(procedure, c(list(ts, model), x$state))}
-    round(model$sample.posterior(ts)[,qw(lo, mean, hi)], 3)}
+    sim.adapt.ts <<- ts
+    round(model$sample.posterior(ts)[,qw(lo, mean, hi, irng)], 3)}
