@@ -24,6 +24,7 @@ adapt.simultaneous = function(ts, model, theta1, theta2, theta3)
        {# Sample the posterior.
         post = simplify2array(model$sample.posterior(raw = T, ts,
             init = list(initify(model, theta1), initify(model, theta2), initify(model, theta3))))
+        stopifnot(!is.null(post))
         # Pick the two farthest points in the posterior sample
         # to be the new theta1 and theta2.
         rows = post[which.farthest(mapcols(post, scale01)),]
@@ -55,6 +56,7 @@ adapt.1patatime = function(ts, model, theta1, theta2, postsamp)
               # I know. I'm hoping that isn't too much of a problem
               # since we're fitting the same model lots of times
               # per subject.
+        stopifnot(!is.null(post))
         postsamp = samprows(post, 3)
         # For a given parameter (which changes each round),
         # set theta1 and theta2 to differ somewhat on that

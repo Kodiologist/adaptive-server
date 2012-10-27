@@ -172,6 +172,7 @@ stan.choicemodel = function(
         current.adapt = n.adapt
         model = cached_stan_model(model.str)
         round = 1
+        subround = 1
         repeat
            {capture.output(fit <- sampling(model, refresh = -1,
                 data = mkdat.stan(ts.train, ts.test),
@@ -183,13 +184,18 @@ stan.choicemodel = function(
             if (fit@mode == 2)
               # An error occurred. If this is a NaN or step-size
               # error, we can probably avoid it by just trying again.
-                next
+               {if (subround >= 3)
+                 # Give up.
+                   return(NULL)
+                subround = subround + 1
+                next}
             rhats = summary(fit)$summary[params.to.monitor, "Rhat"]
             if (all(rhats < gelman.diag.threshold))
                 break
             current.thin = 2 * current.thin
             current.adapt = 2 * current.adapt
             round = round + 1
+            subround = 1
             message(sprintf("r%d: Rhats %s; thin %d, adapt %d",
                 as.integer(round),
                 paste(collapse = ", ", round(rhats, 2)),
