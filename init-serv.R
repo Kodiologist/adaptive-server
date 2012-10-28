@@ -55,8 +55,11 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
            sql('update Trials set choose_ll = ? where subject = ? and trial = ?',
                prev_choose_ll, subject, trial - 1)
        # Do the job.
-       ts = sql('select ssr, ssd, llr, lld, choose_ll from Trials where subject = ? and choose_ll not null',
+       ts = sql('select cast(ssr as real) as ssr, cast(ssd as real) as ssd, cast(llr as real) as llr, cast(lld as real) as lld, choose_ll from Trials where subject = ? and choose_ll not null',
            subject)
+         # The casts are necessary because otherwise, if a column
+         # begins with an integer, RSQLite will truncate all
+         # floats in the column.
        ts$choice = logi2factor(ts$choose_ll, c("ss", "ll"))
        ts$choose_ll = c()
        state = sql('select astate from AdaptiveStates where subject = ?',
@@ -107,7 +110,8 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
        msg("done waiting")
        # The worker must be done, so get the result.
        result = sql(
-           'select ssr, ssd, llr, lld, final_trial from Trials where subject = ? and trial = ?',
+           'select cast(ssr as real) as ssr, cast(ssd as real) as ssd, cast(llr as real) as llr, cast(lld as real) as lld, final_trial
+               from Trials where subject = ? and trial = ?',
            subject, trial)
        quartet = result[qw(ssr, ssd, llr, lld)]
        final_trial = result$final_trial}
