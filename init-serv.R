@@ -77,6 +77,7 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
        else
           {stop(sprintf("unknown model: %s", modelname))}
        msg("adapting")
+       newseed()
        result = do.call(f, c(list(ts, model), state))
        msg("done adapting")
        # Save the result to the database and remove our lockfile.

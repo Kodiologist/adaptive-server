@@ -15,6 +15,11 @@ vassign.char = function(vars, values, envir = parent.frame())
     for (i in seq_along(vars))
         assign(vars[[i]], values[[i]], envir)
 
+newseed = function ()
+# Sets the RNG seed with the current time including some fractional
+# seconds.
+    set.seed((as.numeric(Sys.time()) * 1e5) %% .Machine$integer.max)
+
 maprows = function(x, f) apply(x, 1, f)
 mapcols = function(x, f) apply(x, 2, f)
 
