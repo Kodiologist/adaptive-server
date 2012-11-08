@@ -26,10 +26,13 @@ db = dbConnect(dbDriver("SQLite"), dbname = db.path)
 sql = function (query, ...)
     dbGetPreparedQuery(db, query, bind.data = data.frame(...))
 
-model.expk.rho$precompile()
-model.ghmk.rho$precompile()
-model.diff$precompile()
-model.sr$precompile()
+models = list(
+    expk.rho = model.expk.rho,
+    ghmk.rho = model.ghmk.rho,
+    diff = model.diff,
+    sr = model.sr)
+for (m in models)
+    m$precompile()
 
 msg = function (...)
     message("GNQ: ", ...)
@@ -65,23 +68,13 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
        state = sql('select astate from AdaptiveStates where subject = ?',
            subject)
        state = if (nrow(state)) fromJSON(state[[1]]) else list()
-       if (modelname == "expk.rho")
-          {f = adapt.simultaneous
-           model = model.expk.rho}
-       else if (modelname == "ghmk.rho")
-          {f = adapt.simultaneous
-           model = model.ghmk.rho}
-       else if (modelname == "diff")
-          {f = adapt.simultaneous
-           model = model.diff}
-       else if (modelname == "sr")
-          {f = adapt.simultaneous
-           model = model.sr}
+       if (modelname %in% names(models))
+           model = models[[modelname]]
        else
-          {stop(sprintf("unknown model: %s", modelname))}
+           stop(sprintf("unknown model: %s", modelname))
        msg("adapting")
        newseed()
-       result = do.call(f, c(list(ts, model), state))
+       result = do.call(adapt.simultaneous, c(list(ts, model), state))
        msg("done adapting")
        # Save the result to the database and remove our lockfile.
        sql('insert or replace into AdaptiveStates (subject, astate) values (?, ?)',
