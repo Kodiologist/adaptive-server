@@ -93,7 +93,7 @@ stan.choicemodel = function(
     if (is.null(params.to.monitor))
         params.to.monitor = names(if (mode(init) == "function") init(1) else init[[1]])
     model.str = sprintf(
-       "data
+       'data
            {int <lower = 0> N_ts;
             vector<lower = 0>[N_ts] ssr;
             vector<lower = 0>[N_ts] ssd;
@@ -111,14 +111,17 @@ stan.choicemodel = function(
            {vector[N_ts] choose_ll_p_logit;
             %s
             for (t in 1 : N_ts)
-               choose_ll_p_logit[t] <- %s;}
+              {choose_ll_p_logit[t] <- (%s);
+               /*print("$", ssr[t], " in ", ssd[t], "d vs. ",
+                     "$", llr[t], " in ", lld[t], "d: ",
+                     choose_ll_p_logit[t]);*/}}
         model
            {%s
             choose_ll ~ bernoulli_logit(choose_ll_p_logit);}
         generated quantities
            {vector[N_sim_ts] sim_choose_ll_p;
             for (t in 1 : N_sim_ts)
-               sim_choose_ll_p[t] <- inv_logit(%s);}",
+               sim_choose_ll_p[t] <- inv_logit(%s);}',
         parameters,
         transformed_parameters,
         choice_ll_p_logit,
@@ -154,16 +157,16 @@ stan.choicemodel = function(
                 data = c(
                     mkdat.stan(ts)[qw(N_ts, ssr, ssd, llr, lld)],
                     ...),
-                chains = 1, iter = 2, burnin = 0, thin = 1))
+                chains = 1, iter = 2, warmup = 0, thin = 1))
             p = c(rstan::extract(fit, "choose_ll_p", perm = T)[[1]])}
         else
             p = choice.p(ts, as.numeric(c(...)))
         transform(ts,
             true.p = p,
             choice = logi2factor(rbinom(length(p), 1, p), qw(ss, ll)))};
-    sample.posterior = function(ts, raw.posterior = F, init = std.init)
-        predict.choices(ts, NULL, raw.posterior, init)
-    predict.choices = function(ts.train, ts.test = NULL, raw.posterior = F, init = std.init)
+    sample.posterior = function(ts, raw.posterior = F, init = std.init, debugging = F)
+        predict.choices(ts, NULL, raw.posterior, init, debugging)
+    predict.choices = function(ts.train, ts.test = NULL, raw.posterior = F, init = std.init, debugging = F)
        {if (!is.null(ts.test)) ts.test$choice = NA
         monitor = params.to.monitor
         if (!is.null(ts.test))
@@ -179,16 +182,23 @@ stan.choicemodel = function(
                 init = init,
                 chains = stan.chains,
                 iter = current.adapt + current.thin * stan.samples,
-                burnin = current.adapt,
+                warmup = current.adapt,
                 thin = current.thin))
             if (fit@mode == 2)
               # An error occurred. If this is a NaN or step-size
               # error, we can probably avoid it by just trying again.
-               {if (subround >= 3)
+               {if (subround >= 10)
                  # Give up.
                    return(NULL)
                 subround = subround + 1
                 next}
+            if (debugging)
+               {ex = rstan::extract(fit, params.to.monitor, perm = F)
+                for (n in 1 : dim(ex)[[3]])
+                    {mat = as.matrix(mapcols(drop(ex[,,n]), function (v)
+                        round(quantile(v, c(.025, .25, .5, .75, .975)), 3)))
+                     names(dimnames(mat)) = c("", params.to.monitor[[n]])
+                     print(mat)}}
             rhats = summary(fit)$summary[params.to.monitor, "Rhat"]
             if (all(rhats < gelman.diag.threshold))
                 break
