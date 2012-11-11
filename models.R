@@ -437,10 +437,15 @@ model.ghmk.rho = stan.choicemodel(
           (llr[t] * pow(1 + a * lld[t], e) -
            ssr[t] * pow(1 + a * ssd[t], e))',
     parameters =
-       'real <lower = 0, upper = 1> v30;
-        real <lower = 0, upper = 1> scurve;
+       'real <lower = .0005, upper = 1 - 1e-12> v30;
+        real <lower = 1e-12, upper = .9> scurve;
         real <lower = 0, upper = 1> rho;',
         # Implicit uniform priors.
+        #
+        # The ranges of v30 and scurve are chosen to be broad
+        # without permitting pow(v30, curve), which is used in the
+        # computation of 'a' below, to underflow to 0. (v30 =
+        # .0005 and scurve = .91, for example, would underflow.)
     transformed_parameters =
        'real curve; real e; real a; real rho_v;
         curve <- 10/(1 - scurve) - 10;
@@ -457,8 +462,8 @@ model.ghmk.rho = stan.choicemodel(
         rho.v = 10 * rho
         ilogit(rho.v * (llv - ssv))},
     init = function(n) list(
-        v30 = runif(1, 0, 1),
-        scurve = runif(1, 0, 1),
+        v30 = runif(1, .0005, 1 - 1e-12),
+        scurve = runif(1, 1e-12, .9),
         rho = runif(1, 0, 1)),
     n.adapt = 250)
 
