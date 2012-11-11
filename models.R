@@ -418,8 +418,8 @@ model.ghmv30.rs.rho1 = stan.choicemodel(
        'llr[t] * pow(1 + a * lld[t], e) -
         ssr[t] * pow(1 + a * ssd[t], e)',
     parameters =
-       'real <lower = 0, upper = 1> scurve;
-        real <lower = 0, upper = 1> v30;',
+       'real <lower = 0, upper = 1> v30;
+        real <lower = 0, upper = 1> scurve;',
         # Implicit uniform priors.
     transformed_parameters =
        'real curve; real e; real a;
@@ -437,8 +437,8 @@ model.ghmk.rho = stan.choicemodel(
           (llr[t] * pow(1 + a * lld[t], e) -
            ssr[t] * pow(1 + a * ssd[t], e))',
     parameters =
-       'real <lower = 0, upper = 1> scurve;
-        real <lower = 0, upper = 1> v30;
+       'real <lower = 0, upper = 1> v30;
+        real <lower = 0, upper = 1> scurve;
         real <lower = 0, upper = 1> rho;',
         # Implicit uniform priors.
     transformed_parameters =
