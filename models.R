@@ -108,24 +108,22 @@ stan.choicemodel = function(
         parameters
            {%s}
         transformed parameters
-           {vector[N_ts] choose_ll_p_logit;
-            %s
+           {%s}
+        model
+           {%s
             for (t in 1 : N_ts)
-              {choose_ll_p_logit[t] <- (%s);
+              {choose_ll[t] ~ bernoulli_logit(%s);
                /*print("$", ssr[t], " in ", ssd[t], "d vs. ",
                      "$", llr[t], " in ", lld[t], "d: ",
                      choose_ll_p_logit[t]);*/}}
-        model
-           {%s
-            choose_ll ~ bernoulli_logit(choose_ll_p_logit);}
         generated quantities
            {vector[N_sim_ts] sim_choose_ll_p;
             for (t in 1 : N_sim_ts)
                sim_choose_ll_p[t] <- inv_logit(%s);}',
         parameters,
         transformed_parameters,
-        choice_ll_p_logit,
         prior,
+        choice_ll_p_logit,
         gsub("\\bssr\\b", "sim_ssr",
             gsub("\\bssd\\b", "sim_ssd",
             gsub("\\bllr\\b", "sim_llr",
