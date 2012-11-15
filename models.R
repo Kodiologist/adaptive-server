@@ -67,7 +67,11 @@ single.param.choicemodel = function(choice.p, sample.thetas, prior)
 #        sample.posterior = sample.posterior)}
 
 grid.approx.model = function(choice.p, sample.thetas, prior)
-   {pn = length(sample.thetas)
+# N.B. The posterior will never be evaluated at the endpoints
+# of each vector in sample.thetas. This means you can begin or
+# end the vectors with asymptotes.
+   {sample.thetas = lapply(sample.thetas, function (v) v[-1])
+    pn = length(sample.thetas)
     sample.lens = sapply(sample.thetas, length) - 1
     thetas.df = as.matrix(do.call(expand.grid, lapply(sample.thetas,
         function (v) head(v, -1))))
@@ -89,9 +93,7 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
                 lapply(1 : pn, function (p) thetas[,p])))
             if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
     sample.posterior = function(ts, n = 250)
-       {str(prior.masses)
-        str(thetas.df)
-        jitter.in.thetas.df(
+       {jitter.in.thetas.df(
           # Sample some rows of theta.df, weighted by their
           # posterior masses.
             sample.int(nrow(thetas.df), n, rep = T, prob =
@@ -111,8 +113,8 @@ grid.expk.rho = grid.approx.model(
         rho.v = 10 * rhos
         ilogit(rho.v * (llv - ssv))},
     sample.thetas = list(
-        v30 = seq(.01, 1, .01),
-        rho = seq(.01, 1, .01)),
+        v30 = seq(0, 1, .01),
+        rho = seq(0, 1, .01)),
     prior = prior.uniform)
 
 gelman.diag.threshold = 1.1
