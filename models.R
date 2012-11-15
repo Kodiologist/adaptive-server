@@ -66,6 +66,55 @@ single.param.choicemodel = function(choice.p, sample.thetas, prior)
 #        unnorm.posterior.density = unnorm.posterior.density,
 #        sample.posterior = sample.posterior)}
 
+grid.approx.model = function(choice.p, sample.thetas, prior)
+   {pn = length(sample.thetas)
+    sample.lens = sapply(sample.thetas, length) - 1
+    thetas.df = as.matrix(do.call(expand.grid, lapply(sample.thetas,
+        function (v) head(v, -1))))
+    prior.masses =
+        # Prior density
+        prior(thetas.df) *
+        # Volume
+        maprows(f = prod, as.matrix(do.call(expand.grid, lapply(sample.thetas, diff))))
+    jitter.in.thetas.df = function(rows)
+        do.call(cbind, lapply(1 : pn, function (p)
+           {is = expand.grid.idx(sample.lens, rows, p)
+            runif(length(is),
+                sample.thetas[[p]][is],
+                sample.thetas[[p]][is + 1])}))
+    unnorm.likelihood = function(ts, thetas)
+        maprows(f = prod, sapply(1 : nrow(ts), function (trial)
+           {ps = do.call(choice.p, c(
+                list(ts[trial,]),
+                lapply(1 : pn, function (p) thetas[,p])))
+            if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
+    sample.posterior = function(ts, n = 250)
+       {str(prior.masses)
+        str(thetas.df)
+        jitter.in.thetas.df(
+          # Sample some rows of theta.df, weighted by their
+          # posterior masses.
+            sample.int(nrow(thetas.df), n, rep = T, prob =
+                unnorm.likelihood(ts, thetas.df) *
+                prior.masses))}
+    list(choice.p = choice.p,
+        prior = prior,
+        sample.posterior = sample.posterior)}
+
+prior.uniform = function (theta) 1
+
+grid.expk.rho = grid.approx.model(
+    choice.p = function(t, v30s, rhos)
+       {a = log(v30s)/30
+        ssv = t$ssr * exp(a * t$ssd)
+        llv = t$llr * exp(a * t$lld)
+        rho.v = 10 * rhos
+        ilogit(rho.v * (llv - ssv))},
+    sample.thetas = list(
+        v30 = seq(.01, 1, .01),
+        rho = seq(.01, 1, .01)),
+    prior = prior.uniform)
+
 gelman.diag.threshold = 1.1
 
 stan.samples = 50
