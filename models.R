@@ -86,7 +86,8 @@ mkdat.stan = function(ts.train, ts.test = NULL)
         sim_lld = if (is.null(ts.test)) 0 else ts.test$lld)
 
 stan.choicemodel = function(
-        choice_ll_p_logit, choice.p = NULL,
+        choice_ll_p = NULL, choice_ll_p_logit = NULL,
+        choice.p = NULL,
         parameters, transformed_parameters = '', prior = '',
         params.to.monitor = NULL, init, n.adapt = 150, thin = 1)
    {std.init = init
@@ -112,23 +113,27 @@ stan.choicemodel = function(
         model
            {%s
             for (t in 1 : N_ts)
-              {choose_ll[t] ~ bernoulli_logit(%s);
+              {choose_ll[t] ~ %s;
                /*print("$", ssr[t], " in ", ssd[t], "d vs. ",
                      "$", llr[t], " in ", lld[t], "d: ",
                      choose_ll_p_logit[t]);*/}}
         generated quantities
            {vector[N_sim_ts] sim_choose_ll_p;
             for (t in 1 : N_sim_ts)
-               sim_choose_ll_p[t] <- inv_logit(%s);}',
+               sim_choose_ll_p[t] <- %s;}',
         parameters,
         transformed_parameters,
         prior,
-        choice_ll_p_logit,
+        (if (is.null(choice_ll_p_logit))
+            sprintf("bernoulli(%s)", choice_ll_p) else
+            sprintf("bernoulli_logit(%s)", choice_ll_p_logit)),
         gsub("\\bssr\\b", "sim_ssr",
             gsub("\\bssd\\b", "sim_ssd",
             gsub("\\bllr\\b", "sim_llr",
             gsub("\\blld\\b", "sim_lld",
-            choice_ll_p_logit)))))
+            (if (is.null(choice_ll_p_logit))
+                choice_ll_p else
+                sprintf("inv_logit(%s)", choice_ll_p_logit)))))))
     gendata.model.str = sprintf(
        "data
            {int <lower = 0> N_ts;
@@ -314,6 +319,25 @@ model.diff = stan.choicemodel(
     init = function(n) list(
         b_rd = runif(1, 0, 5),
         b_dd = runif(1, 0, 5)))
+
+model.diff.delta = stan.choicemodel(
+    choice_ll_p =
+           'delta * .5 + (1 - delta) * step(
+                b_rd * (llr[t] - ssr[t]) -
+                b_dd * (lld[t] - ssd[t]))',
+    choice.p = function(ts, theta)
+        theta[3] * .5 + (1 - theta[3]) * (
+            theta[1] * (ts$llr - ts$ssr) >
+            theta[2] * (ts$lld - ts$ssd)),
+    parameters =
+       'real <lower = 0, upper = 5> b_rd;
+        real <lower = 0, upper = 5> b_dd;
+        real <lower = 0, upper = .5> delta;',
+        # Implicit uniform priors.
+    init = function(n) list(
+        b_rd = runif(1, 0, 5),
+        b_dd = runif(1, 0, 5),
+        delta = runif(1, 0, .5)))
 
 model.sr = stan.choicemodel(
     choice_ll_p_logit =
