@@ -88,6 +88,13 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
         prior(thetas.df) *
         # Volume
         maprows(f = prod, as.matrix(do.call(expand.grid, lapply(sample.thetas, diff))))
+    gendata = function(ts, ...)
+    # Adds true.p and a simulated choice column to the data frame.
+        transform(
+            cbind(ts, true.p = sapply(1 : nrow(ts),
+                function (trial) choice.p(ts[trial,], ...))),
+            choice = logi2factor(rbinom(nrow(ts), 1, true.p),
+                qw(ss, ll)))
     jitter.in.thetas.df = function(rows)
         do.call(cbind, lapply(1 : pn, function (p)
            {is = expand.grid.idx(sample.lens, rows, p)
@@ -110,7 +117,7 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
-        choice.p, prior, sample.posterior)}
+        choice.p, prior, gendata, sample.posterior)}
 
 prior.uniform = function (theta) 1
 
