@@ -71,7 +71,7 @@ single.param.choicemodel = function(choice.p, sample.thetas, prior)
 #        unnorm.posterior.density = unnorm.posterior.density,
 #        sample.posterior = sample.posterior)}
 
-grid.approx.model = function(choice.p, sample.thetas, prior)
+grid.approx.model = function(sample.thetas, prior, choice.p)
 # - choice.p should be vectorized over model parameters, not
 #   quartet components (it will only be given one trial at a time).
 # - The posterior will never be evaluated at the endpoints
@@ -117,23 +117,28 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
-        choice.p, prior, gendata, sample.posterior)}
+        prior, choice.p, gendata, sample.posterior)}
 
 prior.uniform = function (theta) 1
 
 grid.expk.rho = grid.approx.model(
-    choice.p = function(t, v30s, rhos)
-       {a = log(v30s)/30
-        ssv = t$ssr * exp(a * t$ssd)
-        llv = t$llr * exp(a * t$lld)
-        rho.v = 10 * rhos
-        ilogit(rho.v * (llv - ssv))},
     sample.thetas = list(
         v30 = seq(0, 1, .01),
         rho = seq(0, 1, .01)),
-    prior = prior.uniform)
+    prior = prior.uniform,
+    choice.p = function(t, v30, rho)
+       {a = log(v30)/30
+        ssv = t$ssr * exp(a * t$ssd)
+        llv = t$llr * exp(a * t$lld)
+        rho.v = 10 * rho
+        ilogit(rho.v * (llv - ssv))})
 
 grid.ghmk.rho = grid.approx.model(
+    sample.thetas = list(
+        v30 = seq(0, 1, .025),
+        scurve = seq(0, 1, .025),
+        rho = seq(0, 1, .025)),
+    prior = prior.uniform,
     choice.p = function(t, v30, scurve, rho)
        {curve = 10*(1/(1 - scurve) - 1)
         e = 1/-curve
@@ -148,12 +153,7 @@ grid.ghmk.rho = grid.approx.model(
             (1 + a1 * t$lld)^e,
             exp(e * (a2 + log(t$lld))))
         rho.v = 10 * rho
-        ilogit(rho.v * (llv - ssv))},
-    sample.thetas = list(
-        v30 = seq(0, 1, .025),
-        scurve = seq(0, 1, .025),
-        rho = seq(0, 1, .025)),
-    prior = prior.uniform)
+        ilogit(rho.v * (llv - ssv))})
 
 gelman.diag.threshold = 1.1
 
