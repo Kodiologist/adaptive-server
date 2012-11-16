@@ -6,6 +6,21 @@ qw = function(...)
    {m = match.call(expand.dots = FALSE)
     char(m[["..."]])}
 
+punl = function(...)
+# Like "list", but uses punning to generate default names, so
+#   punl(a, b, c = x, d)
+# is equivalent to
+#   list(a = a, b = b, c = x, d = d)
+   {m = match.call(expand.dots = F)
+    inp = as.character(m$"...")
+    l = list(...)
+    names(l) = 
+        (if (is.null(names(l)))
+            inp
+         else
+            ifelse(names(l) == "", inp, names(l)))
+    l}
+
 vassign = function(vars, values, envir = parent.frame())
 # vassign(.(a, b), c(1, 2)) is equivalent to {a = 1; b = 2;}.
    {m = match.call()

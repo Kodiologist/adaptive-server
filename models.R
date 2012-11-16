@@ -1,4 +1,9 @@
 library(rstan)
+library(parallel)
+
+if (!exists("default.cluster"))
+   {default.cluster = makeForkCluster(4)
+    setDefaultCluster(default.cluster)}
 
 # ------------------------------------------------------------
 # Functions for defining models
@@ -70,7 +75,8 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
 # N.B. The posterior will never be evaluated at the endpoints
 # of each vector in sample.thetas. This means you can begin or
 # end the vectors with asymptotes.
-   {sample.thetas = lapply(sample.thetas, function (v) v[-1])
+   {orig.sample.thetas = sample.thetas
+    sample.thetas = lapply(sample.thetas, function (v) v[-1])
     pn = length(sample.thetas)
     sample.lens = sapply(sample.thetas, length) - 1
     thetas.df = as.matrix(do.call(expand.grid, lapply(sample.thetas,
@@ -87,7 +93,7 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
                 sample.thetas[[p]][is],
                 sample.thetas[[p]][is + 1])}))
     unnorm.likelihood = function(ts, thetas)
-        maprows(f = prod, sapply(1 : nrow(ts), function (trial)
+        maprows(f = prod, parSapply(cl = NULL, 1 : nrow(ts), function (trial)
            {ps = do.call(choice.p, c(
                 list(ts[trial,]),
                 lapply(1 : pn, function (p) thetas[,p])))
@@ -99,9 +105,10 @@ grid.approx.model = function(choice.p, sample.thetas, prior)
             sample.int(nrow(thetas.df), n, rep = T, prob =
                 unnorm.likelihood(ts, thetas.df) *
                 prior.masses))}
-    list(choice.p = choice.p,
-        prior = prior,
-        sample.posterior = sample.posterior)}
+    punl(
+        sample.thetas = orig.sample.thetas,
+        nrow.thetas.df = nrow(thetas.df),
+        choice.p, prior, sample.posterior)}
 
 prior.uniform = function (theta) 1
 
