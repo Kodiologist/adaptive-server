@@ -72,9 +72,11 @@ single.param.choicemodel = function(choice.p, sample.thetas, prior)
 #        sample.posterior = sample.posterior)}
 
 grid.approx.model = function(choice.p, sample.thetas, prior)
-# N.B. The posterior will never be evaluated at the endpoints
-# of each vector in sample.thetas. This means you can begin or
-# end the vectors with asymptotes.
+# - choice.p should be vectorized over model parameters, not
+#   quartet components (it will only be given one trial at a time).
+# - The posterior will never be evaluated at the endpoints
+#   of each vector in sample.thetas. This means you can begin or
+#   end the vectors with asymptotes.
    {orig.sample.thetas = sample.thetas
     sample.thetas = lapply(sample.thetas, function (v) v[-1])
     pn = length(sample.thetas)
@@ -122,6 +124,28 @@ grid.expk.rho = grid.approx.model(
     sample.thetas = list(
         v30 = seq(0, 1, .01),
         rho = seq(0, 1, .01)),
+    prior = prior.uniform)
+
+grid.ghmk.rho = grid.approx.model(
+    choice.p = function(t, v30, scurve, rho)
+       {curve = 10*(1/(1 - scurve) - 1)
+        e = 1/-curve
+        a1 = (1/v30^curve - 1)/30
+        a2 = -curve*log(v30) - log(30)
+        # When a1 overflows, the logarithmic approximation
+        # (using a2) is more than close enough.
+        ssv = if (t$ssd == 0) t$ssr else t$ssr * ifelse(is.finite(a1),
+            (1 + a1 * t$ssd)^e,
+            exp(e * (a2 + log(t$ssd))))
+        llv = if (t$lld == 0) t$llr else t$llr * ifelse(is.finite(a1),
+            (1 + a1 * t$lld)^e,
+            exp(e * (a2 + log(t$lld))))
+        rho.v = 10 * rho
+        ilogit(rho.v * (llv - ssv))},
+    sample.thetas = list(
+        v30 = seq(0, 1, .025),
+        scurve = seq(0, 1, .025),
+        rho = seq(0, 1, .025)),
     prior = prior.uniform)
 
 gelman.diag.threshold = 1.1
