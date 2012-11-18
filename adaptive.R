@@ -13,11 +13,37 @@ choose.maxpdiff = function(choice.p, theta1, theta2, ts)
     adaptive.quartets = ss(adaptive.quartets, !(
         paste(ssr, ssd, llr, lld) %in% recent.quartets))
     i = which.max(pdiff <- abs(
-        choice.p(adaptive.quartets, theta1) -
-        choice.p(adaptive.quartets, theta2)))
+        if (length(formals(choice.p)) == 2)
+            choice.p(adaptive.quartets, theta1) -
+            choice.p(adaptive.quartets, theta2)
+        else
+            do.call(choice.p, c(list(adaptive.quartets), as.list(theta1))) -
+            do.call(choice.p, c(list(adaptive.quartets), as.list(theta2)))))
     adaptive.quartets[i,]}
 
 adapt.simultaneous.trials = 50
+
+adapt.simultaneous.grid = function(ts, model)
+   {if (nrow(ts))
+       {# Sample the posterior.
+        post = model$sample.posterior(ts)
+        # Pick the two farthest points in the posterior sample
+        # to be the new theta1 and theta2.
+        rows = post[which.farthest(mapcols(post, scale01)),]
+        theta1 = c(rows[1,])
+        theta2 = c(rows[2,])}
+    else
+       {theta1 = c(model$sample.posterior(empty.ts, 1))
+        theta2 = c(model$sample.posterior(empty.ts, 1))}
+
+    # Return the new quartet, a flag saying whether we're done
+    # adapting, and the new thetas.
+    if (exists("post")) print(max(post[,1]), digits = 3)
+    #print(round(rbind(theta1, theta2), 3))
+    list(
+        quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
+        final_trial = as.integer(nrow(ts) + 1 == adapt.simultaneous.trials),
+        state = list())}
 
 adapt.simultaneous = function(ts, model, theta1, theta2, theta3)
    {if (nrow(ts))
@@ -40,6 +66,8 @@ adapt.simultaneous = function(ts, model, theta1, theta2, theta3)
 
     # Return the new quartet, a flag saying whether we're done
     # adapting, and the new thetas.
+    if (exists("post")) print(max(post[,1]), digits = 3)
+    #print(round(rbind(theta1, theta2), 3))
     list(
         quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
         final_trial = as.integer(nrow(ts) + 1 == adapt.simultaneous.trials),
@@ -96,7 +124,7 @@ simulate.adaption = function(procedure, model, decider)
        {cat(sprintf(" [%d] ", nrow(ts)))
         if (x$final_trial)
             break
-        ts = rbind(ts, decider(x$quartet))
+        sim.adapt.ts <<- (ts <- rbind(ts, decider(x$quartet)))
         x = do.call(procedure, c(list(ts, model), x$state))}
-    sim.adapt.ts <<- ts
-    round(model$sample.posterior(ts)[,qw(lo, mean, hi, irng)], 3)}
+    #round(model$sample.posterior(ts)[,qw(lo, mean, hi, irng)], 3)}
+    model$sample.posterior(ts)}

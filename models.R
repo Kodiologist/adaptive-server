@@ -71,9 +71,12 @@ single.param.choicemodel = function(choice.p, sample.thetas, prior)
 #        unnorm.posterior.density = unnorm.posterior.density,
 #        sample.posterior = sample.posterior)}
 
+prev.ts = NULL
+prev.lhood = NULL
 grid.approx.model = function(sample.thetas, prior, choice.p)
-# - choice.p should be vectorized over model parameters, not
-#   quartet components (it will only be given one trial at a time).
+# - choice.p should be vectorizable over trials and over model
+#   parameters, but need not handle the case of multiple trials
+#   and multiple parameter vectors at the same time.
 # - The posterior will never be evaluated at the endpoints
 #   of each vector in sample.thetas. This means you can begin or
 #   end the vectors with asymptotes.
@@ -107,13 +110,23 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 list(ts[trial,]),
                 lapply(1 : pn, function (p) thetas[,p])))
             if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
-    sample.posterior = function(ts, n = 250)
-       {jitter.in.thetas.df(
+    sample.posterior = function(ts, n = 150)
+       {lhood =
+            if (nrow(ts) == 0)
+               1
+            else if (identical(ts, prev.ts))
+               prev.lhood
+            else if (identical(ts[1 : (nrow(ts) - 1),], prev.ts))
+               prev.lhood * unnorm.likelihood(ts[nrow(ts),], thetas.df)
+            else
+               unnorm.likelihood(ts, thetas.df)
+        prev.ts <<- ts
+        prev.lhood <<- lhood
+        jitter.in.thetas.df(
           # Sample some rows of theta.df, weighted by their
           # posterior masses.
             sample.int(nrow(thetas.df), n, rep = T, prob =
-                unnorm.likelihood(ts, thetas.df) *
-                prior.masses))}
+                lhood * prior.masses))}
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
@@ -136,7 +149,7 @@ grid.expk.rho = grid.approx.model(
 grid.ghmk.rho = grid.approx.model(
     sample.thetas = list(
         v30 = seq(0, 1, .025),
-        scurve = seq(0, 1, .025),
+        scurve = seq(0, .9, .025),
         rho = seq(0, 1, .025)),
     prior = prior.uniform,
     choice.p = function(t, v30, scurve, rho)
@@ -146,12 +159,12 @@ grid.ghmk.rho = grid.approx.model(
         a2 = -curve*log(v30) - log(30)
         # When a1 overflows, the logarithmic approximation
         # (using a2) is more than close enough.
-        ssv = if (t$ssd == 0) t$ssr else t$ssr * ifelse(is.finite(a1),
+        ssv = t$ssr * ifelse(is.finite(a1),
             (1 + a1 * t$ssd)^e,
-            exp(e * (a2 + log(t$ssd))))
-        llv = if (t$lld == 0) t$llr else t$llr * ifelse(is.finite(a1),
+            exp(e * (a2 + log(1e-300 + t$ssd))))
+        llv = t$llr * ifelse(is.finite(a1),
             (1 + a1 * t$lld)^e,
-            exp(e * (a2 + log(t$lld))))
+            exp(e * (a2 + log(1e-300 + t$lld))))
         rho.v = 10 * rho
         ilogit(rho.v * (llv - ssv))})
 
