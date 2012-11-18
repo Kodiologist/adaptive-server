@@ -16,21 +16,19 @@ mkdat.stan = function(ts.train, ts.test = NULL)
         ssr = ts.train$ssr,
         ssd = ts.train$ssd,
         llr = ts.train$llr,
-        lld = ts.train$lld,
-        N_sim_ts = if (is.null(ts.test)) 1 else nrow(ts.test),
-        sim_ssr = if (is.null(ts.test)) 0 else ts.test$ssr,
-        sim_ssd = if (is.null(ts.test)) 0 else ts.test$ssd,
-        sim_llr = if (is.null(ts.test)) 0 else ts.test$llr,
-        sim_lld = if (is.null(ts.test)) 0 else ts.test$lld)
+        lld = ts.train$lld)
 
 stan.choicemodel = function(
         choice_ll_p = NULL, choice_ll_p_logit = NULL,
-        choice.p = NULL,
+        choice.p,
         parameters, transformed_parameters = '', prior = '',
-        params.to.monitor = NULL, init, n.adapt = 150, thin = 1)
+        monitor = NULL, init, n.adapt = 150, thin = 1)
+# N.B. choice.p should be vectorizable over either argument, but
+# need not handle the case of multiple trials and multiple
+# parameter vectors at the same time.
    {std.init = init
-    if (is.null(params.to.monitor))
-        params.to.monitor = names(if (mode(init) == "function") init(1) else init[[1]])
+    if (is.null(monitor))
+        monitor = names(if (mode(init) == "function") init(1) else init[[1]])
     model.str = sprintf(
        'data
            {int <lower = 0> N_ts;
@@ -38,12 +36,7 @@ stan.choicemodel = function(
             vector<lower = 0>[N_ts] ssd;
             vector<lower = 0>[N_ts] llr;
             vector<lower = 0>[N_ts] lld;
-            int <lower = 0, upper = 1> choose_ll[N_ts];
-            int <lower = 0> N_sim_ts;
-            vector<lower = 0>[N_ts] sim_ssr;
-            vector<lower = 0>[N_ts] sim_ssd;
-            vector<lower = 0>[N_ts] sim_llr;
-            vector<lower = 0>[N_ts] sim_lld;}
+            int <lower = 0, upper = 1> choose_ll[N_ts];}
         parameters
            {%s}
         transformed parameters
@@ -54,54 +47,17 @@ stan.choicemodel = function(
               {choose_ll[t] ~ %s;
                /*print("$", ssr[t], " in ", ssd[t], "d vs. ",
                      "$", llr[t], " in ", lld[t], "d: ",
-                     choose_ll_p_logit[t]);*/}}
-        generated quantities
-           {vector[N_sim_ts] sim_choose_ll_p;
-            for (t in 1 : N_sim_ts)
-               sim_choose_ll_p[t] <- %s;}',
+                     choose_ll_p_logit[t]);*/}}',
         parameters,
         transformed_parameters,
         prior,
         (if (is.null(choice_ll_p_logit))
             sprintf("bernoulli(%s)", choice_ll_p) else
-            sprintf("bernoulli_logit(%s)", choice_ll_p_logit)),
-        gsub("\\bssr\\b", "sim_ssr",
-            gsub("\\bssd\\b", "sim_ssd",
-            gsub("\\bllr\\b", "sim_llr",
-            gsub("\\blld\\b", "sim_lld",
-            (if (is.null(choice_ll_p_logit))
-                choice_ll_p else
-                sprintf("inv_logit(%s)", choice_ll_p_logit)))))))
-    gendata.model.str = sprintf(
-       "data
-           {int <lower = 0> N_ts;
-            vector[N_ts] ssr;
-            vector[N_ts] ssd;
-            vector[N_ts] llr;
-            vector[N_ts] lld;
-            %s}
-        parameters {real ignored;} model {0 ~ normal(ignored, 1);}
-        generated quantities
-           {vector[N_ts] choose_ll_p;
-            %s
-            for (t in 1 : N_ts)
-               choose_ll_p[t] <- inv_logit(%s);}",
-        parameters,
-        transformed_parameters,
-        choice_ll_p_logit)
+            sprintf("bernoulli_logit(%s)", choice_ll_p_logit)))
     gendata = function(ts, ...)
     # Adds true.p and a simulated choice column to the data frame.
        {ts$choice = NA
-        if (is.null(choice.p))
-           {model = cached_stan_model(gendata.model.str)
-            capture.output(fit <- sampling(model, refresh = -1,
-                data = c(
-                    mkdat.stan(ts)[qw(N_ts, ssr, ssd, llr, lld)],
-                    ...),
-                chains = 1, iter = 2, warmup = 0, thin = 1))
-            p = c(rstan::extract(fit, "choose_ll_p", perm = T)[[1]])}
-        else
-            p = choice.p(ts, as.numeric(c(...)))
+        p = choice.p(ts, as.numeric(c(...)))
         transform(ts,
             true.p = p,
             choice = logi2factor(rbinom(length(p), 1, p), qw(ss, ll)))};
@@ -109,9 +65,6 @@ stan.choicemodel = function(
         predict.choices(ts, NULL, raw.posterior, init, debugging)
     predict.choices = function(ts.train, ts.test = NULL, raw.posterior = F, init = std.init, debugging = F)
        {if (!is.null(ts.test)) ts.test$choice = NA
-        monitor = params.to.monitor
-        if (!is.null(ts.test))
-            monitor = c(monitor, "sim_choose_ll_p")
         current.thin = thin
         current.adapt = n.adapt
         model = cached_stan_model(model.str)
@@ -134,13 +87,13 @@ stan.choicemodel = function(
                 subround = subround + 1
                 next}
             if (debugging)
-               {ex = rstan::extract(fit, params.to.monitor, perm = F)
+               {ex = rstan::extract(fit, monitor, perm = F)
                 for (n in 1 : dim(ex)[[3]])
                     {mat = as.matrix(mapcols(drop(ex[,,n]), function (v)
                         round(quantile(v, c(.025, .25, .5, .75, .975)), 3)))
-                     names(dimnames(mat)) = c("", params.to.monitor[[n]])
+                     names(dimnames(mat)) = c("", monitor[[n]])
                      print(mat)}}
-            rhats = summary(fit, pars = params.to.monitor, use_cache = F)$summary[,"Rhat"]
+            rhats = summary(fit, pars = monitor, use_cache = F)$summary[,"Rhat"]
             if (all(rhats < gelman.diag.threshold))
                 break
             current.thin = 2 * current.thin
@@ -154,10 +107,7 @@ stan.choicemodel = function(
                 as.integer(current.adapt)))}
         posterior = rstan::extract(fit, monitor, perm = T)
         if (raw.posterior) return(posterior)
-        param.post = posterior
-        param.post$sim_choose_ll_p = c()
-        sim_choose_ll_p = posterior$sim_choose_ll_p
-        d = do.call(rbind, lapply(param.post, function (v)
+        d = do.call(rbind, lapply(posterior, function (v)
            {q = quantile(v, c(.025, .975))
             data.frame(
                 param = "", trial = NA,
@@ -166,23 +116,24 @@ stan.choicemodel = function(
                 hi = q[2],
                 irng = q[2] - q[1],
                 ppos = mean(v > 0))}))
-        d$param = factor(params.to.monitor, levels = params.to.monitor)
+        d$param = factor(monitor, levels = monitor)
         row.names(d) = d$param
         if (!is.null(ts.test))
-            d = rbind(d, t(sapply(1 : ncol(sim_choose_ll_p), function (t)
-               {q = as.vector(quantile(sim_choose_ll_p[,t], c(.025, .975)))
+           {d = rbind(d, t(sapply(1 : nrow(ts.test), function (t)
+               {ps = choice.p(ts.test[t,], posterior)
+                q = as.vector(quantile(ps, c(.025, .975)))
                 c(
                     param = NA, trial = t,
                     lo = q[1],
-                    mean = mean(sim_choose_ll_p[,t]),
+                    mean = mean(ps),
                     hi = q[2],
                     irng = q[2] - q[1],
-                    ppos = 1)})))
+                    ppos = 1)})))}
         d}
     precompile = function()
         cached_stan_model(model.str)
     list(
-        params.to.monitor = params.to.monitor,
+        monitor = monitor,
         choice.p = choice.p,
         model.str = model.str,
         init = std.init,
@@ -204,8 +155,8 @@ model.rewards = stan.choicemodel(
             b_llr * llr[t]',
     choice.p = function(ts, theta)
         ilogit(
-            theta[1] * ts$ssr +
-            theta[2] * ts$llr),
+            theta[[1]] * ts$ssr +
+            theta[[2]] * ts$llr),
     parameters =
        'real <lower = -5, upper = 0> b_ssr;
         real <lower = 0, upper = 5> b_llr;',
@@ -220,8 +171,8 @@ model.rewards.logprior = stan.choicemodel(
             b_llr * llr[t]',
     choice.p = function(ts, theta)
         ilogit(
-            theta[1] * ts$ssr +
-            theta[2] * ts$llr),
+            theta[[1]] * ts$ssr +
+            theta[[2]] * ts$llr),
     parameters =
        'real <lower = -5, upper = 0> b_ssr;
         real <lower = 0, upper = 5> b_llr;',
@@ -239,8 +190,8 @@ model.diff = stan.choicemodel(
             b_dd * (lld[t] - ssd[t])',
     choice.p = function(ts, theta)
         ilogit(
-            theta[1] * (ts$llr - ts$ssr) -
-            theta[2] * (ts$lld - ts$ssd)),
+            theta[[1]] * (ts$llr - ts$ssr) -
+            theta[[2]] * (ts$lld - ts$ssd)),
     parameters =
        'real <lower = 0, upper = 5> b_rd;
         real <lower = 0, upper = 5> b_dd;',
@@ -255,9 +206,9 @@ model.diff.delta = stan.choicemodel(
                 b_rd * (llr[t] - ssr[t]) -
                 b_dd * (lld[t] - ssd[t]))',
     choice.p = function(ts, theta)
-        theta[3] * .5 + (1 - theta[3]) * (
-            theta[1] * (ts$llr - ts$ssr) >
-            theta[2] * (ts$lld - ts$ssd)),
+        theta[[3]] * .5 + (1 - theta[[3]]) * (
+            theta[[1]] * (ts$llr - ts$ssr) >
+            theta[[2]] * (ts$lld - ts$ssd)),
     parameters =
        'real <lower = 0, upper = 5> b_rd;
         real <lower = 0, upper = 5> b_dd;
@@ -283,10 +234,10 @@ model.sr = stan.choicemodel(
     # The logarithmic scale of the parameters and the upper bound
     # (148 = exp(5)) are pretty much just what I inferred from
     # fitting this model with vaguer priors to the audTemp data.
-    #params.to.monitor = qw(gamma, tau),
+    #monitor = qw(gamma, tau),
     choice.p = function(ts, theta)
-       {gamma = exp(theta[1])
-        tau = exp(theta[2])
+       {gamma = exp(theta[[1]])
+        tau = exp(theta[[2]])
         ilogit(
             (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma - 
             (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)},
@@ -302,11 +253,11 @@ model.fullglm = stan.choicemodel(
             b_llr * llr[t] +
             b_lld * lld[t]',
     choice.p = function(ts, theta)
-        ilogit(theta[1] +
-            theta[2] * ts$ssr +
-            theta[3] * ts$ssd +
-            theta[4] * ts$llr +
-            theta[5] * ts$lld),
+        ilogit(theta[[1]] +
+            theta[[2]] * ts$ssr +
+            theta[[3]] * ts$ssd +
+            theta[[4]] * ts$llr +
+            theta[[5]] * ts$lld),
     parameters =
        'real <lower = -5, upper = 5> b0;
         real <lower = -5, upper = 0> b_ssr;
@@ -350,24 +301,6 @@ ghmrho.f = function(disc, curve, rho, ssr, ssd, llr, lld)
    {ssv = ssr * (if (curve == 0) exp(-disc * ssd) else (1 + curve * disc * ssd)^(-1/curve))
     llv = llr * (if (curve == 0) exp(-disc * lld) else (1 + curve * disc * lld)^(-1/curve))
     ilogit(rho * (llv  - ssv))}
-
-model.ghmv30.rs.rho1 = stan.choicemodel(
-    choice_ll_p_logit =
-       'llr[t] * pow(1 + a * lld[t], e) -
-        ssr[t] * pow(1 + a * ssd[t], e)',
-    parameters =
-       'real <lower = 0, upper = 1> v30;
-        real <lower = 0, upper = 1> scurve;',
-        # Implicit uniform priors.
-    transformed_parameters =
-       'real curve; real e; real a;
-        curve <- 10/(1 - scurve) - 10;
-        e <- 1/-curve;
-        a <- (1/pow(v30, curve) - 1)/30;',
-    init = function(n) list(
-        v30 = runif(1, 0, 1),
-        scurve = runif(1, 0, 1)),
-    n.adapt = 250)
 
 model.ghmk.rho = stan.choicemodel(
     choice_ll_p_logit =

@@ -1,5 +1,5 @@
 initify = function (model, v)
-    `names<-`(as.list(v), model$params.to.monitor)
+    `names<-`(as.list(v), model$monitor)
 
 quartet.repeat.interval = 10
   # The adaptive procedures will only be allowed to present the
