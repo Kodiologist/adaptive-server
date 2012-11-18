@@ -140,7 +140,7 @@ stan.choicemodel = function(
                         round(quantile(v, c(.025, .25, .5, .75, .975)), 3)))
                      names(dimnames(mat)) = c("", params.to.monitor[[n]])
                      print(mat)}}
-            rhats = summary(fit)$summary[params.to.monitor, "Rhat"]
+            rhats = summary(fit, pars = params.to.monitor, use_cache = F)$summary[,"Rhat"]
             if (all(rhats < gelman.diag.threshold))
                 break
             current.thin = 2 * current.thin
