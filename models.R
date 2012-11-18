@@ -4,68 +4,6 @@ library(rstan)
 # Functions for defining models
 # ------------------------------------------------------------
 
-single.param.choicemodel = function(choice.p, sample.thetas, prior)
-   {theta.name = names(formals(choice.p))[[2]]
-    st = sample.thetas[1 : length(sample.thetas) - 1]
-    gendata = function(ts, ...)
-    # Adds true.p and a simulated choice column to the data frame.
-        transform(
-            cbind(ts, true.p = choice.p(ts, ...)),
-            choice = logi2factor(rbinom(nrow(ts), 1, true.p),
-                qw(ss, ll)))
-    unnorm.posterior.density = function(ts, thetas)
-        sapply(thetas, function(theta)
-           {p = choice.p(ts, theta)
-            x = prior(theta) * prod(ifelse(ts$choice == "ll", p, 1 - p))})
-    sample.posterior = function(ts, n = 250)
-        sample(st, n, rep = T,
-            prob = diff(sample.thetas) *
-                unnorm.posterior.density(ts, st))
-    predict.choices = function(ts.train, ts.test)
-       {samples = sample.posterior(ts.train)
-        posterior = rbind(
-            samples,
-            sapply(samples, function(s)
-                choice.p(ts.test, s)))
-        stats = rbind(
-            maprows(posterior, function (v) quantile(v, c(.025, .975))),
-            maprows(posterior, mean))
-        data.frame(
-            param = c(theta.name, rep(NA, nrow(ts.test))),
-            trial = c(NA, 1 : nrow(ts.test)),
-            lo = stats[1,],
-            mean = stats[3,],
-            hi = stats[2,],
-            irng = stats[2,] - stats[1,])}
-    list(
-        theta.name = theta.name,
-        sample.thetas = sample.thetas,
-        choice.p = choice.p,
-        gendata = gendata,
-        unnorm.posterior.density = unnorm.posterior.density,
-        sample.posterior = sample.posterior,
-        predict.choices = predict.choices)}
-
-#two.param.model = function(choice.p, sample.t1s, sample.t2s, prior)
-#   {st1 = sample.t1s[1 : length(sample.t1s) - 1]
-#    st2 = sample.t2s[1 : length(sample.t2s) - 1]
-#    thetas.df = as.matrix(expand.grid(st1, st2))
-#    unnorm.posterior.density = function(ts, thetas)
-#        maprows(thetas, function(theta)
-#           {p = choice.p(ts, theta)
-#            prior(theta) * prod(ifelse(ts$choice == "ll", p, 1 - p))})
-#    sample.posterior = function(ts, n = 250)
-#        thetas.df[sample(1 : nrow(thetas.df), n, rep = T,
-#            prob =
-#                # Density
-#                unnorm.posterior.density(ts, thetas.df) *
-#                # Volume
-#                rep(diff(sample.t1s), length(st2)) *
-#                    rep(diff(sample.t2s), each = length(st1))),]
-#    list(choice.p = choice.p,
-#        unnorm.posterior.density = unnorm.posterior.density,
-#        sample.posterior = sample.posterior)}
-
 gelman.diag.threshold = 1.1
 
 stan.samples = 50
@@ -260,15 +198,6 @@ rlunif = function(n, min = 1e-10, max = 1)
 # Some model definitions
 # ------------------------------------------------------------
 
-prior.uniform = function (theta) 1
-
-model.constant = single.param.choicemodel(
-# About the simplest model possible: a single probability for every
-# quartet, ignoring rewards and delays.
-    choice.p = function(ts, llp) rep(llp, nrow(ts)),
-    sample.thetas = ilogit(seq(-10, 10, len = 1000)),
-    prior = prior.uniform)
-
 model.rewards = stan.choicemodel(
     choice_ll_p_logit =
            'b_ssr * ssr[t] +
@@ -392,7 +321,6 @@ model.fullglm = stan.choicemodel(
         b_llr = min(5, abs(rnorm(1, 0, .25))),
         b_lld = -min(5, abs(rnorm(1, 0, .25)))))
 
-
 model.expk.rho = stan.choicemodel(
 # model.exprho reparametrized to be more like model.expk.rho.
     choice_ll_p_logit =
@@ -417,18 +345,6 @@ model.expk.rho = stan.choicemodel(
     init = function(n) list(
         v30 = runif(1, 0, 1),
         rho = runif(1, 0, 1)))
-
-model.exp = single.param.choicemodel(
-# model.exprho with rho arbitrarily fixed at 1.
-    choice.p = function(ts, disc)
-       {ssvs = ts$ssr * exp(-disc * ts$ssd)
-        llvs = ts$llr * exp(-disc * ts$lld)
-        ilogit(llvs - ssvs)},
-    sample.thetas = exp(seq(log(1e-10), log(1e6), len = 1000)),
-    prior = function(disc) dgamma(disc, .3, .07))
-     # $ round(qgamma(c(.025, .25, .5, .75, .975), .3, .07), digits = 5)
-     #    0.00005  0.09857  1.04473  4.89856 27.14662
-
 
 ghmrho.f = function(disc, curve, rho, ssr, ssd, llr, lld)
    {ssv = ssr * (if (curve == 0) exp(-disc * ssd) else (1 + curve * disc * ssd)^(-1/curve))
@@ -488,56 +404,3 @@ model.ghmk.rho = stan.choicemodel(
         scurve = runif(1, 1e-12, .9),
         rho = runif(1, 0, 1)),
     n.adapt = 250)
-
-#model.ratio = two.param.model(
-## A logit model with a constant parameter and a parameter for
-## the reward-size ratio.
-#    choice.p = function(ts, theta)
-#        ilogit(theta[1] + theta[2] * ts$llr/ts$ssr),
-#    sample.t1s = seq(-7, 7, len = 100),
-#    sample.t2s = seq(0, 7, len = 100),
-#    prior = prior.uniform)
-
-#model.exp.logk = single.param.choicemodel(
-## Expontential discounting with discount rates on a log scale.
-#    choice.p = function(ts, logdisc)
-#       {ssvs = ts$ssr * exp(-exp(logdisc) * ts$ssd)
-#        llvs = ts$llr * exp(-exp(logdisc) * ts$lld)
-#        ilogit(llvs - ssvs)},
-#    sample.thetas = seq(log(.00001), log(1), len = 1000),
-#    prior = prior.uniform)
-
-#model.exp.hyp = single.param.choicemodel(
-## model.exp with a less precise function that converts value
-## differences to choice probabilities.
-#    choice.p = function(ts, disc)
-#       {ssvs = ts$ssr * exp(-disc * ts$ssd)
-#        llvs = ts$llr * exp(-disc * ts$lld)
-#        v = llvs - ssvs
-#        v/(1 + abs(v))/2 + .5},
-#    sample.thetas = exp(seq(log(.00001), log(1), len = 1000)),
-#    prior = prior.uniform)
-
-#model.exprho = two.param.model(
-## Exponential discounting with a noise parameter and uniform priors.
-#    choice.p = function(ts, theta)
-#       {ssvs = ts$ssr * exp(-theta[1] * ts$ssd)
-#        llvs = ts$llr * exp(-theta[1] * ts$lld)
-#        ilogit(theta[2] * (llvs - ssvs))},
-#    sample.t1s = exp(seq(log(.00001), log(1), len = 500)),
-#    sample.t2s = exp(seq(log(1e-5), log(6), len = 300)),
-#    prior = prior.uniform)
-
-#model.exprho.hiro = two.param.model(
-## model.exprho with a prior that favors large rhos.
-#    choice.p = function(ts, theta)
-#       {ssvs = ts$ssr * exp(-theta[1] * ts$ssd)
-#        llvs = ts$llr * exp(-theta[1] * ts$lld)
-#        ilogit(theta[2] * (llvs - ssvs))},
-#    sample.t1s = exp(seq(log(.00001), log(1), len = 500)),
-#    sample.t2s = ilogit(seq(-7, 7, len = 100)),
-#    prior = function(theta)
-#      # This prior for rho has .75 as its first quartile.
-#        dbeta(theta[2], 4.8, 1))
-
-#})
