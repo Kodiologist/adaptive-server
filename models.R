@@ -270,6 +270,28 @@ model.sr = stan.choicemodel(
         ln_gamma = runif(1, -10, 5),
         ln_tau = runif(1, -10, 5)))
 
+model.sr.rho = stan.choicemodel(
+    choice_ll_p_logit =
+           '(log(1 + gamma * llr[t]) - log(1 + gamma * ssr[t]))/gamma -
+            (log(1 + tau * lld[t]) - log(1 + tau * ssd[t]))/tau',
+    parameters =
+       'real <lower = -1, upper = 1> f;
+        real <lower = 1e-12, upper = 1> rho;',
+        # Implicit uniform priors.
+    transformed_parameters =
+       'real gamma; real tau;
+        gamma <- 1/(100 * rho);
+        tau <- exp(10 * f) * gamma;',
+    choice.p = function(ts, theta)
+       {gamma = 1 / (100 * theta[[2]])
+        tau = exp(10 * theta[[1]]) * gamma
+        ilogit(
+            (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
+            (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)},
+    init = function(n) list(
+        f = runif(1, -1, 1),
+        rho = runif(1, 1e-12, 1)))
+
 model.fullglm = stan.choicemodel(
     choice_ll_p_logit =
        'b0 +
