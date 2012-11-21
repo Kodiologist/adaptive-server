@@ -7,7 +7,7 @@ library(rstan)
 gelman.diag.threshold = 1.1
 
 stan.samples = 50
-stan.chains = 3
+stan.chains = 7
 
 mkdat.stan = function(ts.train, ts.test = NULL)
     list(

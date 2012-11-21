@@ -19,31 +19,27 @@ choose.maxpdiff = function(choice.p, theta1, theta2, ts)
 
 adapt.simultaneous.trials = 50
 
-adapt.simultaneous = function(ts, model, theta1, theta2, theta3)
+adapt.simultaneous = function(ts, model)
    {if (nrow(ts))
        {# Sample the posterior.
-        post = simplify2array(model$sample.posterior(raw = T, ts,
-            init = list(initify(model, theta1), initify(model, theta2), initify(model, theta3))))
+        post = simplify2array(model$sample.posterior(raw = T, ts))
         stopifnot(!is.null(post))
         # Pick the two farthest points in the posterior sample
         # to be the new theta1 and theta2.
         rows = post[which.farthest(mapcols(post, scale01)),]
         theta1 = c(rows[1,])
-        theta2 = c(rows[2,])
-        # theta3 is just an arbitrary sample.
-        theta3 = as.numeric(samprows(post, 1))}
+        theta2 = c(rows[2,])}
     else
       # Initialize thetas.
        {theta1 = as.numeric(model$init(1))
-        theta2 = as.numeric(model$init(2))
-        theta3 = as.numeric(model$init(3))}
+        theta2 = as.numeric(model$init(2))}
 
-    # Return the new quartet, a flag saying whether we're done
-    # adapting, and the new thetas.
+    # Return the new quartet and a flag saying whether we're done
+    # adapting.
     list(
         quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
         final_trial = as.integer(nrow(ts) + 1 == adapt.simultaneous.trials),
-        state = list(theta1, theta2, theta3))}
+        state = list())}
 
 adapt.1patatime.trials = 50
 
