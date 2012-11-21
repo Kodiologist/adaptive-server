@@ -120,10 +120,9 @@ stan.choicemodel = function(
             int <lower = 0, upper = 1> choose_ll[N_ts];}
         parameters
            {%s}
-        transformed parameters
-           {%s}
         model
            {%s
+            %s
             for (t in 1 : N_ts)
               {choose_ll[t] ~ %s;
                /*print("$", ssr[t], " in ", ssd[t], "d vs. ",
