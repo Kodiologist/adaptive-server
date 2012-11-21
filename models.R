@@ -74,12 +74,12 @@ prior.uniform = function (theta) 1
 
 grid.sr.rho = grid.approx.model(
     sample.thetas = list(
-        f = seq(-1, 1, len = 200),
+        dr = seq(-1, 1, len = 200),
         rho = seq(0, 1, len = 200)),
     prior = prior.uniform,
-    choice.p = function(ts, f, rho)
+    choice.p = function(ts, dr, rho)
        {gamma = 1 / (100 * rho)
-        tau = exp(10 * f) * gamma
+        tau = exp(10 * dr) * gamma
         ilogit(
             (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
             (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)})
@@ -272,19 +272,19 @@ model.diff.rho = stan.choicemodel(
             ((llr[t] - ssr[t]) -
              a * (lld[t] - ssd[t]))',
     parameters =
-       'real <lower = -1, upper = 1> f;
+       'real <lower = -1, upper = 1> dr;
         real <lower = 0, upper = 1> rho;',
         # Implicit uniform priors.
     transformed_parameters =
        'real rho_v; real a;
         rho_v <- 10 * rho;
-        a <- exp(10 * f);',
-    choice.p = function(ts, f, rho)
+        a <- exp(10 * dr);',
+    choice.p = function(ts, dr, rho)
         ilogit(10 * rho *
             ((ts$llr - ts$ssr) -
-            exp(10 * f) * (ts$lld - ts$ssd))),
+            exp(10 * dr) * (ts$lld - ts$ssd))),
     init = function(n) list(
-        f = runif(1, -1, 1),
+        dr = runif(1, -1, 1),
         rho = runif(1, 0, 1)))
 
 model.sr = stan.choicemodel(
@@ -325,14 +325,14 @@ model.sr.rho = stan.choicemodel(
        'real gamma; real tau;
         gamma <- 1/(100 * rho);
         tau <- exp(10 * f) * gamma;',
-    choice.p = function(ts, f, rho)
+    choice.p = function(ts, dr, rho)
        {gamma = 1 / (100 * rho)
-        tau = exp(10 * f) * gamma
+        tau = exp(10 * dr) * gamma
         ilogit(
             (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
             (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)},
     init = function(n) list(
-        f = runif(1, -1, 1),
+        dr = runif(1, -1, 1),
         rho = runif(1, 1e-12, 1)))
 
 model.fullglm = stan.choicemodel(
