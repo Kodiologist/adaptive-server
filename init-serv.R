@@ -31,8 +31,8 @@ sql = function (query, ...)
 models = list(
     expk.rho = model.expk.rho,
     ghmk.rho = model.ghmk.rho,
-    diff = model.diff,
-    sr = model.sr)
+    diff.rho = model.diff.rho,
+    sr.rho = model.sr.rho)
 for (m in models)
     m$precompile()
 
@@ -67,20 +67,15 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
          # floats in the column.
        ts$choice = logi2factor(ts$choose_ll, c("ss", "ll"))
        ts$choose_ll = c()
-       state = sql('select astate from AdaptiveStates where subject = ?',
-           subject)
-       state = if (nrow(state)) fromJSON(state[[1]]) else list()
        if (modelname %in% names(models))
            model = models[[modelname]]
        else
            stop(sprintf("unknown model: %s", modelname))
        msg("adapting")
        newseed()
-       result = do.call(adapt.simultaneous, c(list(ts, model), state))
+       result = adapt.simultaneous(ts, model)
        msg("done adapting")
        # Save the result to the database and remove our lockfile.
-       sql('insert or replace into AdaptiveStates (subject, astate) values (?, ?)',
-            subject, jsonize(result$state))
        quartet = result$quartet
        final_trial = result$final_trial
        with(quartet,

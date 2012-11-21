@@ -9,8 +9,3 @@ create table Trials
     final_trial     integer,
     choose_ll       integer,
     primary key (subject, trial));
-
-create table AdaptiveStates
-   (subject                         integer primary key
-        references Trials(subject),
-    astate          text            not null);

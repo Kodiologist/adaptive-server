@@ -46,6 +46,11 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
             if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
     sample.posterior = function(ts, n = grid.samples)
        {lhood =
+          # We use prev.ts and prev.lhood to avoid recomputing
+          # the likelihood for past trials. This optimization
+          # doesn't trigger while we're running subjects because
+          # in Rserve, changes to variables don't persist across
+          # children. That's okay; it's only a convenience.
             if (nrow(ts) == 0)
                1
             else if (identical(ts, prev.ts))
@@ -63,26 +68,16 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 lhood * prior.masses))
         dimnames(posterior) = list(c(), names(sample.thetas))
         posterior}
+    precompile = function()
+        invisible(NULL)
     rand.theta = function()
         drop(sample.posterior(empty.ts, n = 1))
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
-        prior, choice.p, sample.posterior, rand.theta)}
+        prior, choice.p, precompile, sample.posterior, rand.theta)}
 
 prior.uniform = function (theta) 1
-
-grid.sr.rho = grid.approx.model(
-    sample.thetas = list(
-        dr = seq(-1, 1, len = 200),
-        rho = seq(0, 1, len = 200)),
-    prior = prior.uniform,
-    choice.p = function(ts, dr, rho)
-       {gamma = 1 / (100 * rho)
-        tau = exp(10 * dr) * gamma
-        ilogit(
-            (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
-            (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)})
 
 gelman.diag.threshold = 1.1
 
@@ -312,27 +307,17 @@ model.sr = stan.choicemodel(
         ln_gamma = runif(1, -10, 5),
         ln_tau = runif(1, -10, 5)))
 
-model.sr.rho = stan.choicemodel(
-    choice_ll_p_logit =
-           '(log(1 + gamma * llr[t]) - log(1 + gamma * ssr[t]))/gamma -
-            (log(1 + tau * lld[t]) - log(1 + tau * ssd[t]))/tau',
-    parameters =
-       'real <lower = -1, upper = 1> f;
-        real <lower = 1e-12, upper = 1> rho;',
-        # Implicit uniform priors.
-    transformed_parameters =
-       'real gamma; real tau;
-        gamma <- 1/(100 * rho);
-        tau <- exp(10 * f) * gamma;',
+model.sr.rho = grid.approx.model(
+    sample.thetas = list(
+        dr = seq(-1, 1, len = 200),
+        rho = seq(0, 1, len = 200)),
+    prior = prior.uniform,
     choice.p = function(ts, dr, rho)
        {gamma = 1 / (100 * rho)
         tau = exp(10 * dr) * gamma
         ilogit(
             (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
-            (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)},
-    init = function(n) list(
-        dr = runif(1, -1, 1),
-        rho = runif(1, 1e-12, 1)))
+            (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)})
 
 model.fullglm = stan.choicemodel(
     choice_ll_p_logit =
