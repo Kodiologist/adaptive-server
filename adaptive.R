@@ -22,7 +22,9 @@ adapt.simultaneous.trials = 50
 adapt.simultaneous = function(ts, model)
    {if (nrow(ts))
        {# Sample the posterior.
-        post = model$sample.posterior(ts)
+        x = model$sample.posterior(ts, diagnostics = T)
+        post = x$p
+        x$p = NULL
         # Pick the two farthest points in the posterior sample
         # to be the new theta1 and theta2.
         rows = post[which.farthest(mapcols(post, scale01)),]
@@ -31,14 +33,15 @@ adapt.simultaneous = function(ts, model)
     else
       # Initialize thetas.
        {theta1 = model$rand.theta()
-        theta2 = model$rand.theta()}
+        theta2 = model$rand.theta()
+        x = list()}
 
     # Return the new quartet and a flag saying whether we're done
     # adapting.
     list(
         quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
         final_trial = as.integer(nrow(ts) + 1 == adapt.simultaneous.trials),
-        state = list())}
+        diagnostics = x)}
 
 adapt.1patatime.trials = 50
 

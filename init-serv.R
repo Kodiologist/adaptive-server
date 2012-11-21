@@ -76,6 +76,11 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
        result = adapt.simultaneous(ts, model)
        msg("done adapting")
        # Save the result to the database and remove our lockfile.
+       if (length(result$diagnostics))
+           with(result$diagnostics, sql(
+               'insert into MCMCDiagnostics values (?, ?, ?, ?, ?)',
+               subject, trial, mcmc.round, quit.early,
+               paste(sprintf("%.3f", rhats), collapse = ",")))
        quartet = result$quartet
        final_trial = result$final_trial
        with(quartet,

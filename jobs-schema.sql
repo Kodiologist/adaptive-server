@@ -9,3 +9,11 @@ create table Trials
     final_trial     integer,
     choose_ll       integer,
     primary key (subject, trial));
+
+create table MCMCDiagnostics
+   (subject         integer         not null,
+    trial           integer         not null,
+    mcmc_round      integer         not null,
+    quit_early      integer         not null,
+    rhats           text            not null,
+    primary key (subject, trial));

@@ -44,7 +44,7 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 list(ts[trial,]),
                 lapply(1 : pn, function (p) thetas[,p])))
             if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
-    sample.posterior = function(ts, n = grid.samples)
+    sample.posterior = function(ts, n = grid.samples, diagnostics = F)
        {lhood =
           # We use prev.ts and prev.lhood to avoid recomputing
           # the likelihood for past trials. This optimization
@@ -67,7 +67,10 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
             sample.int(nrow(thetas.df), n, rep = T, prob =
                 lhood * prior.masses))
         dimnames(posterior) = list(c(), names(sample.thetas))
-        posterior}
+        if (diagnostics)
+            list(p = posterior)
+        else
+            posterior}
     precompile = function()
         invisible(NULL)
     rand.theta = function()
@@ -129,7 +132,7 @@ stan.choicemodel = function(
         (if (is.null(choice_ll_p_logit))
             sprintf("bernoulli(%s)", choice_ll_p) else
             sprintf("bernoulli_logit(%s)", choice_ll_p_logit)))
-    sample.posterior = function(ts, init = std.init, debugging = F)
+    sample.posterior = function(ts, init = std.init, diagnostics = F, debugging = F)
        {current.thin = thin
         current.adapt = n.adapt
         model = cached_stan_model(model.str)
@@ -173,7 +176,12 @@ stan.choicemodel = function(
             if (round > max.mcmc.rounds)
                {message("Using this sample anyway")
                 break}}
-        simplify2array(rstan::extract(fit, monitor, perm = T))}
+        posterior = simplify2array(rstan::extract(fit, monitor, perm = T))
+        if (diagnostics)
+            list(p = posterior, rhats = rhats, mcmc.round = round,
+                quit.early = round > max.mcmc.rounds)
+        else
+            posterior}
     precompile = function()
         cached_stan_model(model.str)
     rand.theta = function()
