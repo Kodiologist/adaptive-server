@@ -13,17 +13,13 @@ choose.maxpdiff = function(choice.p, theta1, theta2, ts)
     adaptive.quartets = ss(adaptive.quartets, !(
         paste(ssr, ssd, llr, lld) %in% recent.quartets))
     i = which.max(pdiff <- abs(
-        if (length(formals(choice.p)) == 2)
-            choice.p(adaptive.quartets, theta1) -
-            choice.p(adaptive.quartets, theta2)
-        else
             do.call(choice.p, c(list(adaptive.quartets), as.list(theta1))) -
             do.call(choice.p, c(list(adaptive.quartets), as.list(theta2)))))
     adaptive.quartets[i,]}
 
 adapt.simultaneous.trials = 50
 
-adapt.simultaneous.grid = function(ts, model)
+adapt.simultaneous = function(ts, model)
    {if (nrow(ts))
        {# Sample the posterior.
         post = model$sample.posterior(ts)
@@ -33,30 +29,9 @@ adapt.simultaneous.grid = function(ts, model)
         theta1 = c(rows[1,])
         theta2 = c(rows[2,])}
     else
-       {theta1 = c(model$sample.posterior(empty.ts, n = 1))
-        theta2 = c(model$sample.posterior(empty.ts, n = 1))}
-
-    # Return the new quartet and a flag saying whether we're done
-    # adapting.
-    list(
-        quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
-        final_trial = as.integer(nrow(ts) + 1 == adapt.simultaneous.trials),
-        state = list())}
-
-adapt.simultaneous = function(ts, model)
-   {if (nrow(ts))
-       {# Sample the posterior.
-        post = simplify2array(model$sample.posterior(ts))
-        stopifnot(!is.null(post))
-        # Pick the two farthest points in the posterior sample
-        # to be the new theta1 and theta2.
-        rows = post[which.farthest(mapcols(post, scale01)),]
-        theta1 = c(rows[1,])
-        theta2 = c(rows[2,])}
-    else
       # Initialize thetas.
-       {theta1 = as.numeric(model$init(1))
-        theta2 = as.numeric(model$init(2))}
+       {theta1 = model$rand.theta()
+        theta2 = model$rand.theta()}
 
     # Return the new quartet and a flag saying whether we're done
     # adapting.
@@ -98,8 +73,3 @@ adapt.1patatime = function(ts, model, theta1, theta2, postsamp)
         quartet = choose.maxpdiff(model$choice.p, theta1, theta2, ts),
         final_trial = as.integer(nrow(ts) + 1 == adapt.1patatime.trials),
         state = list(theta1, theta2, postsamp))}
-
-empty.ts = data.frame(
-    ssr = numeric(0), ssd = numeric(0),
-    llr = numeric(0), lld = numeric(0),
-    choice = factor(character(0), levels = qw(ss, ll)))

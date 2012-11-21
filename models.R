@@ -4,6 +4,11 @@ library(rstan)
 # Functions for defining models
 # ------------------------------------------------------------
 
+empty.ts = data.frame(
+    ssr = numeric(0), ssd = numeric(0),
+    llr = numeric(0), lld = numeric(0),
+    choice = factor(character(0), levels = qw(ss, ll)))
+
 grid.samples = 150
 
 prev.ts = NULL
@@ -58,10 +63,12 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 lhood * prior.masses))
         dimnames(posterior) = list(c(), names(sample.thetas))
         posterior}
+    rand.theta = function()
+        drop(sample.posterior(empty.ts, n = 1))
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
-        prior, choice.p, sample.posterior)}
+        prior, choice.p, sample.posterior, rand.theta)}
 
 prior.uniform = function (theta) 1
 
@@ -70,12 +77,12 @@ grid.sr.rho = grid.approx.model(
         f = seq(-1, 1, len = 200),
         rho = seq(0, 1, len = 200)),
     prior = prior.uniform,
-    choice.p = function(t, f, rho)
+    choice.p = function(ts, f, rho)
        {gamma = 1 / (100 * rho)
         tau = exp(10 * f) * gamma
         ilogit(
-            (log(1 + gamma * t$llr) - log(1 + gamma * t$ssr))/gamma -
-            (log(1 + tau * t$lld) - log(1 + tau * t$ssd))/tau)})
+            (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
+            (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)})
 
 gelman.diag.threshold = 1.1
 
@@ -175,10 +182,12 @@ stan.choicemodel = function(
         simplify2array(rstan::extract(fit, monitor, perm = T))}
     precompile = function()
         cached_stan_model(model.str)
+    rand.theta = function()
+        simplify2array(std.init(1))
     punl(
         monitor, choice.p, model.str,
         init = std.init,
-        precompile, sample.posterior)}
+        precompile, sample.posterior, rand.theta)}
 
 rlunif = function(n, min = 1e-10, max = 1)
    exp(runif(n, log(min), log(max)))
@@ -191,10 +200,10 @@ model.rewards = stan.choicemodel(
     choice_ll_p_logit =
            'b_ssr * ssr[t] +
             b_llr * llr[t]',
-    choice.p = function(ts, theta)
+    choice.p = function(ts, b_ssr, b_llr)
         ilogit(
-            theta[[1]] * ts$ssr +
-            theta[[2]] * ts$llr),
+            b_ssr * ts$ssr +
+            b_llr * ts$llr),
     parameters =
        'real <lower = -5, upper = 0> b_ssr;
         real <lower = 0, upper = 5> b_llr;',
@@ -207,10 +216,10 @@ model.rewards.logprior = stan.choicemodel(
     choice_ll_p_logit =
            'b_ssr * ssr[t] +
             b_llr * llr[t]',
-    choice.p = function(ts, theta)
+    choice.p = function(ts, b_ssr, b_llr)
         ilogit(
-            theta[[1]] * ts$ssr +
-            theta[[2]] * ts$llr),
+            b_ssr * ts$ssr +
+            b_llr * ts$llr),
     parameters =
        'real <lower = -5, upper = 0> b_ssr;
         real <lower = 0, upper = 5> b_llr;',
@@ -226,10 +235,10 @@ model.diff = stan.choicemodel(
     choice_ll_p_logit =
            'b_rd * (llr[t] - ssr[t]) -
             b_dd * (lld[t] - ssd[t])',
-    choice.p = function(ts, theta)
+    choice.p = function(ts, b_rd, b_dd)
         ilogit(
-            theta[[1]] * (ts$llr - ts$ssr) -
-            theta[[2]] * (ts$lld - ts$ssd)),
+            b_rd * (ts$llr - ts$ssr) -
+            b_dd * (ts$lld - ts$ssd)),
     parameters =
        'real <lower = 0, upper = 5> b_rd;
         real <lower = 0, upper = 5> b_dd;',
@@ -243,10 +252,10 @@ model.diff.delta = stan.choicemodel(
            'delta * .5 + (1 - delta) * step(
                 b_rd * (llr[t] - ssr[t]) -
                 b_dd * (lld[t] - ssd[t]))',
-    choice.p = function(ts, theta)
-        theta[[3]] * .5 + (1 - theta[[3]]) * (
-            theta[[1]] * (ts$llr - ts$ssr) >
-            theta[[2]] * (ts$lld - ts$ssd)),
+    choice.p = function(ts, b_rd, b_dd, delta)
+        delta * .5 + (1 - delta) * (
+            b_rd * (ts$llr - ts$ssr) >
+            b_dd * (ts$lld - ts$ssd)),
     parameters =
        'real <lower = 0, upper = 5> b_rd;
         real <lower = 0, upper = 5> b_dd;
@@ -270,10 +279,10 @@ model.diff.rho = stan.choicemodel(
        'real rho_v; real a;
         rho_v <- 10 * rho;
         a <- exp(10 * f);',
-    choice.p = function(ts, theta)
-        ilogit(10 * theta[[2]] *
+    choice.p = function(ts, f, rho)
+        ilogit(10 * rho *
             ((ts$llr - ts$ssr) -
-            exp(10 * theta[[1]]) * (ts$lld - ts$ssd))),
+            exp(10 * f) * (ts$lld - ts$ssd))),
     init = function(n) list(
         f = runif(1, -1, 1),
         rho = runif(1, 0, 1)))
@@ -294,9 +303,9 @@ model.sr = stan.choicemodel(
     # (148 = exp(5)) are pretty much just what I inferred from
     # fitting this model with vaguer priors to the audTemp data.
     #monitor = qw(gamma, tau),
-    choice.p = function(ts, theta)
-       {gamma = exp(theta[[1]])
-        tau = exp(theta[[2]])
+    choice.p = function(ts, ln_gamma, ln_tau)
+       {gamma = exp(ln_gamma)
+        tau = exp(ln_tau)
         ilogit(
             (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma - 
             (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)},
@@ -316,9 +325,9 @@ model.sr.rho = stan.choicemodel(
        'real gamma; real tau;
         gamma <- 1/(100 * rho);
         tau <- exp(10 * f) * gamma;',
-    choice.p = function(ts, theta)
-       {gamma = 1 / (100 * theta[[2]])
-        tau = exp(10 * theta[[1]]) * gamma
+    choice.p = function(ts, f, rho)
+       {gamma = 1 / (100 * rho)
+        tau = exp(10 * f) * gamma
         ilogit(
             (log(1 + gamma * ts$llr) - log(1 + gamma * ts$ssr))/gamma -
             (log(1 + tau * ts$lld) - log(1 + tau * ts$ssd))/tau)},
@@ -333,12 +342,12 @@ model.fullglm = stan.choicemodel(
             b_ssd * ssd[t] +
             b_llr * llr[t] +
             b_lld * lld[t]',
-    choice.p = function(ts, theta)
-        ilogit(theta[[1]] +
-            theta[[2]] * ts$ssr +
-            theta[[3]] * ts$ssd +
-            theta[[4]] * ts$llr +
-            theta[[5]] * ts$lld),
+    choice.p = function(ts, b0, b_ssr, b_ssd, b_llr, b_lld)
+        ilogit(b0 +
+            b_ssr * ts$ssr +
+            b_ssd * ts$ssd +
+            b_llr * ts$llr +
+            b_lld * ts$lld),
     parameters =
        'real <lower = -5, upper = 5> b0;
         real <lower = -5, upper = 0> b_ssr;
@@ -367,9 +376,8 @@ model.expk.rho = stan.choicemodel(
        'real a; real rho_v;
         a <- log(v30)/30;
         rho_v <- 10 * rho;',
-    choice.p = function(ts, theta)
-       {vassign(.(v30, rho), theta)
-        a = log(v30)/30
+    choice.p = function(ts, v30, rho)
+       {a = log(v30)/30
         ssv = ts$ssr * exp(a * ts$ssd)
         llv = ts$llr * exp(a * ts$lld)
         rho.v = 10 * rho
@@ -404,9 +412,8 @@ model.ghmk.rho = stan.choicemodel(
         e <- 1/-curve;
         a <- (1/pow(v30, curve) - 1)/30;
         rho_v <- 10 * rho;',
-    choice.p = function(ts, theta)
-       {vassign(.(v30, scurve, rho), theta)
-        curve = 10*(1/(1 - scurve) - 1)
+    choice.p = function(ts, v30, scurve, rho)
+       {curve = 10*(1/(1 - scurve) - 1)
         e = 1/-curve
         a = (1/v30^curve - 1)/30
         ssv = ts$ssr * (1 + a * ts$ssd)^e
