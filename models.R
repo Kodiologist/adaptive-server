@@ -424,4 +424,5 @@ model.ghmk.rho = stan.choicemodel(
         v30 = runif(1, .0005, 1 - 1e-12),
         scurve = runif(1, 1e-12, .9),
         rho = runif(1, 0, 1)),
-    n.adapt = 250)
+    n.adapt = 250,
+    max.mcmc.rounds = 6)
