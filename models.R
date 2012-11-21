@@ -1,8 +1,110 @@
 library(rstan)
+library(parallel)
+
+if (!exists("default.cluster"))
+   {default.cluster = makeForkCluster(4)
+    setDefaultCluster(default.cluster)}
 
 # ------------------------------------------------------------
 # Functions for defining models
 # ------------------------------------------------------------
+
+prev.ts = NULL
+prev.lhood = NULL
+grid.approx.model = function(sample.thetas, prior, choice.p)
+# - choice.p should be vectorizable over trials and over model
+#   parameters, but need not handle the case of multiple trials
+#   and multiple parameter vectors at the same time.
+# - The posterior will never be evaluated at the endpoints
+#   of each vector in sample.thetas. This means you can begin or
+#   end the vectors with asymptotes.
+   {orig.sample.thetas = sample.thetas
+    sample.thetas = lapply(sample.thetas, function (v) v[-1])
+    pn = length(sample.thetas)
+    sample.lens = sapply(sample.thetas, length) - 1
+    thetas.df = as.matrix(do.call(expand.grid, lapply(sample.thetas,
+        function (v) head(v, -1))))
+    prior.masses =
+        # Prior density
+        prior(thetas.df) *
+        # Volume
+        maprows(f = prod, as.matrix(do.call(expand.grid, lapply(sample.thetas, diff))))
+    gendata = function(ts, ...)
+    # Adds true.p and a simulated choice column to the data frame.
+        transform(
+            cbind(ts, true.p = sapply(1 : nrow(ts),
+                function (trial) choice.p(ts[trial,], ...))),
+            choice = logi2factor(rbinom(nrow(ts), 1, true.p),
+                qw(ss, ll)))
+    jitter.in.thetas.df = function(rows)
+        do.call(cbind, lapply(1 : pn, function (p)
+           {is = expand.grid.idx(sample.lens, rows, p)
+            runif(length(is),
+                sample.thetas[[p]][is],
+                sample.thetas[[p]][is + 1])}))
+    unnorm.likelihood = function(ts, thetas)
+        maprows(f = prod, parSapply(cl = NULL, 1 : nrow(ts), function (trial)
+           {ps = do.call(choice.p, c(
+                list(ts[trial,]),
+                lapply(1 : pn, function (p) thetas[,p])))
+            if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
+    sample.posterior = function(ts, n = 150)
+       {lhood =
+            if (nrow(ts) == 0)
+               1
+            else if (identical(ts, prev.ts))
+               prev.lhood
+            else if (identical(ts[1 : (nrow(ts) - 1),], prev.ts))
+               prev.lhood * unnorm.likelihood(ts[nrow(ts),], thetas.df)
+            else
+               unnorm.likelihood(ts, thetas.df)
+        prev.ts <<- ts
+        prev.lhood <<- lhood
+        jitter.in.thetas.df(
+          # Sample some rows of theta.df, weighted by their
+          # posterior masses.
+            sample.int(nrow(thetas.df), n, rep = T, prob =
+                lhood * prior.masses))}
+    punl(
+        sample.thetas = orig.sample.thetas,
+        nrow.thetas.df = nrow(thetas.df),
+        prior, choice.p, gendata, sample.posterior)}
+
+prior.uniform = function (theta) 1
+
+grid.expk.rho = grid.approx.model(
+    sample.thetas = list(
+        v30 = seq(0, 1, .01),
+        rho = seq(0, 1, .01)),
+    prior = prior.uniform,
+    choice.p = function(t, v30, rho)
+       {a = log(v30)/30
+        ssv = t$ssr * exp(a * t$ssd)
+        llv = t$llr * exp(a * t$lld)
+        rho.v = 10 * rho
+        ilogit(rho.v * (llv - ssv))})
+
+grid.ghmk.rho = grid.approx.model(
+    sample.thetas = list(
+        v30 = seq(0, 1, .025),
+        scurve = seq(0, .9, .025),
+        rho = seq(0, 1, .025)),
+    prior = prior.uniform,
+    choice.p = function(t, v30, scurve, rho)
+       {curve = 10*(1/(1 - scurve) - 1)
+        e = 1/-curve
+        a1 = (1/v30^curve - 1)/30
+        a2 = -curve*log(v30) - log(30)
+        # When a1 overflows, the logarithmic approximation
+        # (using a2) is more than close enough.
+        ssv = t$ssr * ifelse(is.finite(a1),
+            (1 + a1 * t$ssd)^e,
+            exp(e * (a2 + log(1e-300 + t$ssd))))
+        llv = t$llr * ifelse(is.finite(a1),
+            (1 + a1 * t$lld)^e,
+            exp(e * (a2 + log(1e-300 + t$lld))))
+        rho.v = 10 * rho
+        ilogit(rho.v * (llv - ssv))})
 
 gelman.diag.threshold = 1.1
 
