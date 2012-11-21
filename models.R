@@ -219,6 +219,27 @@ model.diff.delta = stan.choicemodel(
         b_dd = runif(1, 0, 5),
         delta = runif(1, 0, .5)))
 
+model.diff.rho = stan.choicemodel(
+    choice_ll_p_logit =
+           'rho_v *
+            ((llr[t] - ssr[t]) -
+             a * (lld[t] - ssd[t]))',
+    parameters =
+       'real <lower = -1, upper = 1> f;
+        real <lower = 0, upper = 1> rho;',
+        # Implicit uniform priors.
+    transformed_parameters =
+       'real rho_v; real a;
+        rho_v <- 10 * rho;
+        a <- exp(10 * f);',
+    choice.p = function(ts, theta)
+        ilogit(10 * theta[[2]] *
+            ((ts$llr - ts$ssr) -
+            exp(10 * theta[[1]]) * (ts$lld - ts$ssd))),
+    init = function(n) list(
+        f = runif(1, -1, 1),
+        rho = runif(1, 0, 1)))
+
 model.sr = stan.choicemodel(
     choice_ll_p_logit =
            '(log(1 + gamma * llr[t]) - log(1 + gamma * ssr[t]))/gamma -
