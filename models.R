@@ -84,28 +84,6 @@ grid.expk.rho = grid.approx.model(
         rho.v = 10 * rho
         ilogit(rho.v * (llv - ssv))})
 
-grid.ghmk.rho = grid.approx.model(
-    sample.thetas = list(
-        v30 = seq(0, 1, .025),
-        scurve = seq(0, .9, .025),
-        rho = seq(0, 1, .025)),
-    prior = prior.uniform,
-    choice.p = function(t, v30, scurve, rho)
-       {curve = 10*(1/(1 - scurve) - 1)
-        e = 1/-curve
-        a1 = (1/v30^curve - 1)/30
-        a2 = -curve*log(v30) - log(30)
-        # When a1 overflows, the logarithmic approximation
-        # (using a2) is more than close enough.
-        ssv = t$ssr * ifelse(is.finite(a1),
-            (1 + a1 * t$ssd)^e,
-            exp(e * (a2 + log(1e-300 + t$ssd))))
-        llv = t$llr * ifelse(is.finite(a1),
-            (1 + a1 * t$lld)^e,
-            exp(e * (a2 + log(1e-300 + t$lld))))
-        rho.v = 10 * rho
-        ilogit(rho.v * (llv - ssv))})
-
 gelman.diag.threshold = 1.1
 
 stan.samples = 50
