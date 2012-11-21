@@ -1,9 +1,4 @@
 library(rstan)
-library(parallel)
-
-if (!exists("default.cluster"))
-   {default.cluster = makeForkCluster(4)
-    setDefaultCluster(default.cluster)}
 
 # ------------------------------------------------------------
 # Functions for defining models
@@ -46,7 +41,7 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 sample.thetas[[p]][is],
                 sample.thetas[[p]][is + 1])}))
     unnorm.likelihood = function(ts, thetas)
-        maprows(f = prod, parSapply(cl = NULL, 1 : nrow(ts), function (trial)
+        maprows(f = prod, maybeparallel.sapply(1 : nrow(ts), function (trial)
            {ps = do.call(choice.p, c(
                 list(ts[trial,]),
                 lapply(1 : pn, function (p) thetas[,p])))

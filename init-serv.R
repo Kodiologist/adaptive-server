@@ -6,6 +6,8 @@ jsonize = function (x)
     gsub("\n", " ", fixed = T,
         toJSON(x, digits = 20))
 
+options(fork_maybeparallel.sapply = F)
+  # Don't do grid approximation in parallel.
 source("util.R")
 source("quartets.R")
 source("models.R")

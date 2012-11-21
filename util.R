@@ -74,6 +74,16 @@ which.farthest = function(m, ...)
    {d = dist(m, ...)
     dist.idx(d, which.max(d))}
 
+{
+    if (getOption("fork_maybeparallel.sapply", TRUE))
+       {library(parallel)
+        if (!exists("default.cluster"))
+           {default.cluster = makeForkCluster(getOption("mc.cores", 2))
+            setDefaultCluster(default.cluster)}
+        maybeparallel.sapply = function(...) parSapply(NULL, ...)}
+    else
+        maybeparallel.sapply = sapply}
+
 standardize.stan.code = function(stan.code)
 # Remove comments and reduce whitespace.
     gsub("\\s+", " ",
