@@ -9,8 +9,11 @@ if (!exists("default.cluster"))
 # Functions for defining models
 # ------------------------------------------------------------
 
+grid.samples = 150
+
 prev.ts = NULL
 prev.lhood = NULL
+
 grid.approx.model = function(sample.thetas, prior, choice.p)
 # - choice.p should be vectorizable over trials and over model
 #   parameters, but need not handle the case of multiple trials
@@ -48,7 +51,9 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 list(ts[trial,]),
                 lapply(1 : pn, function (p) thetas[,p])))
             if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
-    sample.posterior = function(ts, n = 150)
+    sample.posterior = function(ts, raw.posterior = F, n = grid.samples)
+        predict.choices(ts, NULL, raw.posterior, n)
+    predict.choices = function(ts, ts.test = NULL, raw.posterior = F, n = grid.samples)
        {lhood =
             if (nrow(ts) == 0)
                1
@@ -60,22 +65,48 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                unnorm.likelihood(ts, thetas.df)
         prev.ts <<- ts
         prev.lhood <<- lhood
-        jitter.in.thetas.df(
+        posterior = jitter.in.thetas.df(
           # Sample some rows of theta.df, weighted by their
           # posterior masses.
             sample.int(nrow(thetas.df), n, rep = T, prob =
-                lhood * prior.masses))}
+                lhood * prior.masses))
+        dimnames(posterior) = list(c(), names(sample.thetas))
+        if (raw.posterior) return(posterior)
+        d = do.call(rbind, mapcols(posterior, function (v)
+           {q = quantile(v, c(.025, .975))
+            data.frame(
+                param = "", trial = NA,
+                lo = q[1],
+                mean = mean(v),
+                hi = q[2],
+                irng = q[2] - q[1],
+                ppos = mean(v > 0))}))
+        d$param = factor(names(sample.thetas), levels = names(sample.thetas))
+        row.names(d) = d$param
+        if (!is.null(ts.test))
+           {post.list = col.list(posterior)
+            d = rbind(d, t(sapply(1 : nrow(ts.test), function (t)
+               {ps = do.call(choice.p, c(list(ts.test[t,]), post.list))
+                q = as.vector(quantile(ps, c(.025, .975)))
+                c(
+                    param = NA, trial = t,
+                    lo = q[1],
+                    mean = mean(ps),
+                    hi = q[2],
+                    irng = q[2] - q[1],
+                    ppos = 1)})))}
+        d}
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
-        prior, choice.p, gendata, sample.posterior)}
+        prior, choice.p, gendata, sample.posterior, predict.choices)}
 
 prior.uniform = function (theta) 1
 
 grid.expk.rho = grid.approx.model(
     sample.thetas = list(
-        v30 = seq(0, 1, .01),
-        rho = seq(0, 1, .01)),
+        v30 = seq(0, 1, len = 500),
+        rho = seq(0, 1, len = 500)),
     prior = prior.uniform,
     choice.p = function(t, v30, rho)
        {a = log(v30)/30

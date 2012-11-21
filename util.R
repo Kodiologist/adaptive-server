@@ -14,7 +14,7 @@ punl = function(...)
    {m = match.call(expand.dots = F)
     inp = as.character(m$"...")
     l = list(...)
-    names(l) = 
+    names(l) =
         (if (is.null(names(l)))
             inp
          else
@@ -37,6 +37,10 @@ newseed = function ()
 
 maprows = function(x, f) apply(x, 1, f)
 mapcols = function(x, f) apply(x, 2, f)
+
+col.list = function(m)
+# Turns a matrix into a list of columns, like as.data.frame.
+    lapply(1 : ncol(m), function (i) m[,i])
 
 samprows = function(m, n.rows, replace = F)
     m[sample.int(nrow(m), n.rows, replace),]

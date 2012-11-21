@@ -26,15 +26,15 @@ adapt.simultaneous.trials = 50
 adapt.simultaneous.grid = function(ts, model)
    {if (nrow(ts))
        {# Sample the posterior.
-        post = model$sample.posterior(ts)
+        post = model$sample.posterior(ts, raw = T)
         # Pick the two farthest points in the posterior sample
         # to be the new theta1 and theta2.
         rows = post[which.farthest(mapcols(post, scale01)),]
         theta1 = c(rows[1,])
         theta2 = c(rows[2,])}
     else
-       {theta1 = c(model$sample.posterior(empty.ts, 1))
-        theta2 = c(model$sample.posterior(empty.ts, 1))}
+       {theta1 = c(model$sample.posterior(empty.ts, n = 1, raw = T))
+        theta2 = c(model$sample.posterior(empty.ts, n = 1, raw = T))}
 
     # Return the new quartet and a flag saying whether we're done
     # adapting.
@@ -118,5 +118,4 @@ simulate.adaption = function(procedure, model, decider)
             break
         ts = rbind(ts, decider(x$quartet))
         x = do.call(procedure, c(list(ts, model), x$state))}
-    #round(model$sample.posterior(ts)[,qw(lo, mean, hi, irng)], 3)}
     model$sample.posterior(ts)}
