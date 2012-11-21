@@ -26,15 +26,15 @@ adapt.simultaneous.trials = 50
 adapt.simultaneous.grid = function(ts, model)
    {if (nrow(ts))
        {# Sample the posterior.
-        post = model$sample.posterior(ts, raw = T)
+        post = model$sample.posterior(ts)
         # Pick the two farthest points in the posterior sample
         # to be the new theta1 and theta2.
         rows = post[which.farthest(mapcols(post, scale01)),]
         theta1 = c(rows[1,])
         theta2 = c(rows[2,])}
     else
-       {theta1 = c(model$sample.posterior(empty.ts, n = 1, raw = T))
-        theta2 = c(model$sample.posterior(empty.ts, n = 1, raw = T))}
+       {theta1 = c(model$sample.posterior(empty.ts, n = 1))
+        theta2 = c(model$sample.posterior(empty.ts, n = 1))}
 
     # Return the new quartet and a flag saying whether we're done
     # adapting.
@@ -46,7 +46,7 @@ adapt.simultaneous.grid = function(ts, model)
 adapt.simultaneous = function(ts, model)
    {if (nrow(ts))
        {# Sample the posterior.
-        post = simplify2array(model$sample.posterior(raw = T, ts))
+        post = simplify2array(model$sample.posterior(ts))
         stopifnot(!is.null(post))
         # Pick the two farthest points in the posterior sample
         # to be the new theta1 and theta2.
@@ -70,7 +70,7 @@ adapt.1patatime.trials = 50
 adapt.1patatime = function(ts, model, theta1, theta2, postsamp)
    {if (nrow(ts))
        {# Sample the posterior.
-        post = simplify2array(model$sample.posterior(raw = T, ts,
+        post = simplify2array(model$sample.posterior(ts,
             init = maprows(postsamp, function (v) initify(model, v))))
               # This means the initial values aren't overdispersed,
               # I know. I'm hoping that isn't too much of a problem
@@ -99,23 +99,7 @@ adapt.1patatime = function(ts, model, theta1, theta2, postsamp)
         final_trial = as.integer(nrow(ts) + 1 == adapt.1patatime.trials),
         state = list(theta1, theta2, postsamp))}
 
-mkdecider = function(model, ...)
-    function(quartet)
-        model$gendata(quartet, ...)
-
 empty.ts = data.frame(
     ssr = numeric(0), ssd = numeric(0),
     llr = numeric(0), lld = numeric(0),
     choice = factor(character(0), levels = qw(ss, ll)))
-
-sim.adapt.ts = NULL
-simulate.adaption = function(procedure, model, decider)
-   {ts = empty.ts
-    x = procedure(ts, model)
-    repeat
-       {cat(sprintf(" [%d] ", nrow(ts)))
-        if (x$final_trial)
-            break
-        ts = rbind(ts, decider(x$quartet))
-        x = do.call(procedure, c(list(ts, model), x$state))}
-    model$sample.posterior(ts)}

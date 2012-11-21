@@ -27,13 +27,6 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
         prior(thetas.df) *
         # Volume
         maprows(f = prod, as.matrix(do.call(expand.grid, lapply(sample.thetas, diff))))
-    gendata = function(ts, ...)
-    # Adds true.p and a simulated choice column to the data frame.
-        transform(
-            cbind(ts, true.p = sapply(1 : nrow(ts),
-                function (trial) choice.p(ts[trial,], ...))),
-            choice = logi2factor(rbinom(nrow(ts), 1, true.p),
-                qw(ss, ll)))
     jitter.in.thetas.df = function(rows)
         do.call(cbind, lapply(1 : pn, function (p)
            {is = expand.grid.idx(sample.lens, rows, p)
@@ -46,9 +39,7 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
                 list(ts[trial,]),
                 lapply(1 : pn, function (p) thetas[,p])))
             if (ts[trial, "choice"] == "ll") ps else 1 - ps}))
-    sample.posterior = function(ts, raw.posterior = F, n = grid.samples)
-        predict.choices(ts, NULL, raw.posterior, n)
-    predict.choices = function(ts, ts.test = NULL, raw.posterior = F, n = grid.samples)
+    sample.posterior = function(ts, n = grid.samples)
        {lhood =
             if (nrow(ts) == 0)
                1
@@ -66,35 +57,11 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
             sample.int(nrow(thetas.df), n, rep = T, prob =
                 lhood * prior.masses))
         dimnames(posterior) = list(c(), names(sample.thetas))
-        if (raw.posterior) return(posterior)
-        d = do.call(rbind, mapcols(posterior, function (v)
-           {q = quantile(v, c(.025, .975))
-            data.frame(
-                param = "", trial = NA,
-                lo = q[1],
-                mean = mean(v),
-                hi = q[2],
-                irng = q[2] - q[1],
-                ppos = mean(v > 0))}))
-        d$param = factor(names(sample.thetas), levels = names(sample.thetas))
-        row.names(d) = d$param
-        if (!is.null(ts.test))
-           {post.list = col.list(posterior)
-            d = rbind(d, t(sapply(1 : nrow(ts.test), function (t)
-               {ps = do.call(choice.p, c(list(ts.test[t,]), post.list))
-                q = as.vector(quantile(ps, c(.025, .975)))
-                c(
-                    param = NA, trial = t,
-                    lo = q[1],
-                    mean = mean(ps),
-                    hi = q[2],
-                    irng = q[2] - q[1],
-                    ppos = 1)})))}
-        d}
+        posterior}
     punl(
         sample.thetas = orig.sample.thetas,
         nrow.thetas.df = nrow(thetas.df),
-        prior, choice.p, gendata, sample.posterior, predict.choices)}
+        prior, choice.p, sample.posterior)}
 
 prior.uniform = function (theta) 1
 
@@ -115,14 +82,14 @@ gelman.diag.threshold = 1.1
 stan.samples = 50
 stan.chains = 7
 
-mkdat.stan = function(ts.train, ts.test = NULL)
+mkdat.stan = function(ts)
     list(
-        N_ts = nrow(ts.train),
-        choose_ll = as.integer(ts.train$choice == "ll"),
-        ssr = ts.train$ssr,
-        ssd = ts.train$ssd,
-        llr = ts.train$llr,
-        lld = ts.train$lld)
+        N_ts = nrow(ts),
+        choose_ll = as.integer(ts$choice == "ll"),
+        ssr = ts$ssr,
+        ssd = ts$ssd,
+        llr = ts$llr,
+        lld = ts$lld)
 
 stan.choicemodel = function(
         choice_ll_p = NULL, choice_ll_p_logit = NULL,
@@ -161,25 +128,15 @@ stan.choicemodel = function(
         (if (is.null(choice_ll_p_logit))
             sprintf("bernoulli(%s)", choice_ll_p) else
             sprintf("bernoulli_logit(%s)", choice_ll_p_logit)))
-    gendata = function(ts, ...)
-    # Adds true.p and a simulated choice column to the data frame.
-       {ts$choice = NA
-        p = choice.p(ts, as.numeric(c(...)))
-        transform(ts,
-            true.p = p,
-            choice = logi2factor(rbinom(length(p), 1, p), qw(ss, ll)))};
-    sample.posterior = function(ts, raw.posterior = F, init = std.init, debugging = F)
-        predict.choices(ts, NULL, raw.posterior, init, debugging)
-    predict.choices = function(ts.train, ts.test = NULL, raw.posterior = F, init = std.init, debugging = F)
-       {if (!is.null(ts.test)) ts.test$choice = NA
-        current.thin = thin
+    sample.posterior = function(ts, init = std.init, debugging = F)
+       {current.thin = thin
         current.adapt = n.adapt
         model = cached_stan_model(model.str)
         round = 1
         subround = 1
         repeat
            {capture.output(fit <- sampling(model, refresh = -1,
-                data = mkdat.stan(ts.train, ts.test),
+                data = mkdat.stan(ts),
                 init = init,
                 chains = stan.chains,
                 iter = current.adapt + current.thin * stan.samples,
@@ -215,42 +172,13 @@ stan.choicemodel = function(
             if (round > max.mcmc.rounds)
                {message("Using this sample anyway")
                 break}}
-        posterior = rstan::extract(fit, monitor, perm = T)
-        if (raw.posterior) return(posterior)
-        d = do.call(rbind, lapply(posterior, function (v)
-           {q = quantile(v, c(.025, .975))
-            data.frame(
-                param = "", trial = NA,
-                lo = q[1],
-                mean = mean(v),
-                hi = q[2],
-                irng = q[2] - q[1],
-                ppos = mean(v > 0))}))
-        d$param = factor(monitor, levels = monitor)
-        row.names(d) = d$param
-        if (!is.null(ts.test))
-           {d = rbind(d, t(sapply(1 : nrow(ts.test), function (t)
-               {ps = choice.p(ts.test[t,], posterior)
-                q = as.vector(quantile(ps, c(.025, .975)))
-                c(
-                    param = NA, trial = t,
-                    lo = q[1],
-                    mean = mean(ps),
-                    hi = q[2],
-                    irng = q[2] - q[1],
-                    ppos = 1)})))}
-        d}
+        simplify2array(rstan::extract(fit, monitor, perm = T))}
     precompile = function()
         cached_stan_model(model.str)
-    list(
-        monitor = monitor,
-        choice.p = choice.p,
-        model.str = model.str,
+    punl(
+        monitor, choice.p, model.str,
         init = std.init,
-        gendata = gendata,
-        sample.posterior = sample.posterior,
-        predict.choices = predict.choices,
-        precompile = precompile)}
+        precompile, sample.posterior)}
 
 rlunif = function(n, min = 1e-10, max = 1)
    exp(runif(n, log(min), log(max)))
