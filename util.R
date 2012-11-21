@@ -42,6 +42,14 @@ col.list = function(m)
 # Turns a matrix into a list of columns, like as.data.frame.
     lapply(1 : ncol(m), function (i) m[,i])
 
+expand.grid.idx = function (lengths, row, col)
+# Given some coordinates in an expand.grid-generated matrix,
+# returns the corresponding index of the original input vector.
+# If    m = do.call(expand.grid, vs)
+# then  m[r, c] =
+#     vs[[c]][expand.grid.idx(c(length(v1), …, length(vN)), r, c)]
+    mod1(div1(row, prod(head(lengths, col - 1))), lengths[col])
+
 samprows = function(m, n.rows, replace = F)
     m[sample.int(nrow(m), n.rows, replace),]
 
@@ -51,6 +59,11 @@ pick = function(v, size = 1, ...)
     v[sample.int(length(v), size, ...)]
 
 ilogit = function (v)  1 / (1 + exp(-v))
+
+div1 = function (v, n)
+# div1(1:20, 4) =>
+# 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5
+    ((v - 1) %/% n) + 1
 
 mod1 = function (v, n)
 # mod1(1:20, 6) =>
