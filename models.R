@@ -22,7 +22,8 @@ stan.choicemodel = function(
         choice_ll_p = NULL, choice_ll_p_logit = NULL,
         choice.p,
         parameters, transformed_parameters = '', prior = '',
-        monitor = NULL, init, n.adapt = 150, thin = 1)
+        monitor = NULL, init, n.adapt = 150, thin = 1,
+        max.mcmc.rounds = 9)
 # N.B. choice.p should be vectorizable over either argument, but
 # need not handle the case of multiple trials and multiple
 # parameter vectors at the same time.
@@ -100,11 +101,14 @@ stan.choicemodel = function(
             current.adapt = 2 * current.adapt
             round = round + 1
             subround = 1
-            message(sprintf("r%d: Rhats %s; thin %d, adapt %d",
-                as.integer(round),
+            message(sprintf("r%d: Rhats %s; next: thin %d, adapt %d",
+                as.integer(round - 1),
                 paste(collapse = ", ", round(rhats, 2)),
                 as.integer(current.thin),
-                as.integer(current.adapt)))}
+                as.integer(current.adapt)))
+            if (round > max.mcmc.rounds)
+               {message("Using this sample anyway")
+                break}}
         posterior = rstan::extract(fit, monitor, perm = T)
         if (raw.posterior) return(posterior)
         d = do.call(rbind, lapply(posterior, function (v)
