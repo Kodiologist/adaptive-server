@@ -103,22 +103,10 @@ grid.approx.model = function(sample.thetas, prior, choice.p)
 
 prior.uniform = function (theta) 1
 
-grid.expk.rho = grid.approx.model(
-    sample.thetas = list(
-        v30 = seq(0, 1, len = 500),
-        rho = seq(0, 1, len = 500)),
-    prior = prior.uniform,
-    choice.p = function(t, v30, rho)
-       {a = log(v30)/30
-        ssv = t$ssr * exp(a * t$ssd)
-        llv = t$llr * exp(a * t$lld)
-        rho.v = 10 * rho
-        ilogit(rho.v * (llv - ssv))})
-
 grid.sr.rho = grid.approx.model(
     sample.thetas = list(
-        f = seq(-1, 1, len = 500),
-        rho = seq(0, 1, len = 500)),
+        f = seq(-1, 1, len = 200),
+        rho = seq(0, 1, len = 200)),
     prior = prior.uniform,
     choice.p = function(t, f, rho)
        {gamma = 1 / (100 * rho)
