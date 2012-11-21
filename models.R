@@ -84,6 +84,18 @@ grid.expk.rho = grid.approx.model(
         rho.v = 10 * rho
         ilogit(rho.v * (llv - ssv))})
 
+grid.sr.rho = grid.approx.model(
+    sample.thetas = list(
+        f = seq(-1, 1, len = 500),
+        rho = seq(0, 1, len = 500)),
+    prior = prior.uniform,
+    choice.p = function(t, f, rho)
+       {gamma = 1 / (100 * rho)
+        tau = exp(10 * f) * gamma
+        ilogit(
+            (log(1 + gamma * t$llr) - log(1 + gamma * t$ssr))/gamma -
+            (log(1 + tau * t$lld) - log(1 + tau * t$ssd))/tau)})
+
 gelman.diag.threshold = 1.1
 
 stan.samples = 50
