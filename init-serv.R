@@ -1,4 +1,5 @@
 # -*- R -*-
+if (!exists("server.version")) server.version = "unset"
 
 library(RJSONIO)
 jsonize = function (x)
@@ -113,4 +114,5 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
     list(
         quartet = quartet,
         trial = trial,
-        final_trial = final_trial)}
+        final_trial = final_trial,
+        server_version = server.version)}
