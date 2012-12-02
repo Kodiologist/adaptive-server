@@ -150,8 +150,7 @@ stan.choicemodel = function(
               # An error occurred. If this is a NaN or step-size
               # error, we can probably avoid it by just trying again.
                {if (subround >= 10)
-                 # Give up.
-                   return(NULL)
+                   stop("Gave up: too many subrounds")
                 subround = subround + 1
                 next}
             if (debugging)
