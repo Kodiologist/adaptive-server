@@ -138,6 +138,7 @@ stan.choicemodel = function(
         model = cached_stan_model(model.str)
         round = 1
         subround = 1
+        dput(mkdat.stan(ts))
         repeat
            {capture.output(fit <- sampling(model, refresh = -1,
                 data = mkdat.stan(ts),
