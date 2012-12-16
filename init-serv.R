@@ -103,8 +103,10 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
         worker.lockfile = sql(
             'select lockfile from Trials where subject = ? and trial = ?',
             subject, trial)[[1]]
-        system2('inotifywait', c('-e', 'move_self', worker.lockfile),
+        exitcode = system2('inotifywait', c('-e', 'move_self', worker.lockfile),
             stdout = F, stderr = F)
+        if (exitcode == system2.command.not.run.code)
+            stop("Failed to run inotifywait")
         msg("done waiting")
         # The worker must be done, so get the result.
         result = sql(

@@ -1,6 +1,8 @@
 ss = subset
 char = as.character
 
+system2.command.not.run.code = 127
+
 qw = function(...)
 # qw(a, b, c) → c("a", "b", "c")
    {m = match.call(expand.dots = FALSE)
