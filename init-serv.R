@@ -73,7 +73,6 @@ get_next_quartet = function(modelname, subject, trial, prev_choose_ll = NULL)
             model = models[[modelname]]
         else
             stop(sprintf("unknown model: %s", modelname))
-        print(ts)
         msg("adapting")
         newseed()
         result = adapt.simultaneous(ts, model)
