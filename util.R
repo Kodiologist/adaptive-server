@@ -108,15 +108,22 @@ standardize.stan.code = function(stan.code)
     gsub("//.*?(\n|$)", "\\1",
     stan.code)))))
 
+cached_stan_model.primary_cache = new.env()
 cached_stan_model = function(code, bypass.cache = F)
    {library(R.cache)
     library(rstan)
     dirs = c("Kodi", "stan", "models")
-    key = list(code = standardize.stan.code(code))
+    keystr = standardize.stan.code(code)
+    key = list(code = keystr)
     if (!bypass.cache)
-       {model = loadCache(key, dirs = dirs)
+       {model = cached_stan_model.primary_cache[[keystr]]
         if (!is.null(model))
-            return(model)}
+            return(model)
+        model = loadCache(key, dirs = dirs)
+        if (!is.null(model))
+           {cached_stan_model.primary_cache[[keystr]] = model
+            return(model)}}
     model = stan_model(model_code = code)
     saveCache(model, key, dirs = dirs)
+    cached_stan_model.primary_cache[[keystr]] = model
     model}
