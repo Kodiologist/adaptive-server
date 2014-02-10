@@ -377,6 +377,30 @@ model.expk.rho = stan.choicemodel(
         v30 = runif(1, 0, 1),
         rho = runif(1, 0, 1)))
 
+model.hypk.rho = stan.choicemodel(
+# A hyperbolic equivalent of model.expk.rho.
+    choice_ll_p_logit =
+       'rho_v *
+          (llr[t] / (1 + a * lld[t]) -
+           ssr[t] / (1 + a * ssd[t]))',
+    parameters =
+       'real <lower = 0, upper = 1> v30;
+        real <lower = 0, upper = 1> rho;',
+        # Implicit uniform priors.
+    transformed_parameters =
+       'real a; real rho_v;
+        a <- (1 - v30) / (30 * v30);
+        rho_v <- 10 * rho;',
+    choice.p = function(ts, v30, rho)
+       {a = (1 - v30) / (30 * v30)
+        ssv = ts$ssr / (1 + a * ts$ssd)
+        llv = ts$llr / (1 + a * ts$lld)
+        rho.v = 10 * rho
+        ilogit(rho.v * (llv - ssv))},
+    init = function(n) list(
+        v30 = runif(1, 0, 1),
+        rho = runif(1, 0, 1)))
+
 ghmrho.f = function(disc, curve, rho, ssr, ssd, llr, lld)
    {ssv = ssr * (if (curve == 0) exp(-disc * ssd) else (1 + curve * disc * ssd)^(-1/curve))
     llv = llr * (if (curve == 0) exp(-disc * lld) else (1 + curve * disc * lld)^(-1/curve))
